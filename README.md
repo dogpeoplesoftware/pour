@@ -14,6 +14,16 @@ Pour is a free, open-source voice dictation app for Android. Fully offline — n
 - **Trash** — deleted pieces go to Trash first, with configurable auto-delete
 - **Backup & restore** — full library backup to a single file
 
+## Screenshots
+
+| Capture | Bucket | Projects |
+|---|---|---|
+| ![Capture](screenshots/capture.png) | ![Bucket](screenshots/bucket.png) | ![Projects](screenshots/projects.png) |
+
+| Project detail | Share | Themes |
+|---|---|---|
+| ![Project detail](screenshots/project-detail.png) | ![Share](screenshots/share.png) | ![Themes](screenshots/themes.png) |
+
 ## Building
 
 Pour is a native Android app (Java, no Gradle — builds with a shell script).
