@@ -1,0 +1,9 @@
+Pour is a free, open-source voice dictation app. Tap to talk, and your words appear as text — fully offline, no accounts, no cloud, no subscriptions.
+
+Everything you dictate lands in the Bucket, a quick-capture inbox. File pieces into Projects to organize longer writing. Export to plain text, Markdown, Fountain (for screenwriters), HTML, or PDF.
+
+* On-device speech recognition (no internet needed after model download)
+* Bucket inbox + Projects with folders
+* 7 themes including dark mode
+* Backup & restore your entire library
+* Free software under GPL-3.0
