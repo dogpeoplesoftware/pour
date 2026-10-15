@@ -2,7 +2,7 @@
 
 **Speak, and Pour writes it down.** Turn thoughts into words you can keep and send anywhere.
 
-Pour is a free, open-source voice dictation app for Android. Fully offline — no accounts, no cloud, no subscriptions. Your words stay on your device.
+Pour is a free, open-source voice dictation app for Android. Fully offline. No accounts, no cloud, no subscriptions. Your words stay on your device.
 
 ## Features
 
