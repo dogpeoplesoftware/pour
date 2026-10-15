@@ -62,6 +62,8 @@ public class MainActivity extends Activity implements DictationEngine.Host {
         autoDeleteOldTrash();
         // Purge stale export cache files.
         purgeExportCache();
+        // Demo data for screenshots (no-op unless DemoData.DEMO_MODE).
+        DemoData.populateIfNeeded(this);
         // Kroko model ships in assets/kroko/ and is warmed up below;
         // no separate model download needed.
         final Context appCtx = getApplicationContext();
@@ -572,13 +574,20 @@ public class MainActivity extends Activity implements DictationEngine.Host {
             engine.setAppendTarget(appendNoteId, appendSeed);
         }
         // Pass waveform to the engine for real-time visualization.
+        attachWaveform();
+        engine.start();
+    }
+
+    /** Give the engine the current WaveformView. Must be called before
+     * every engine.start() — including the auto-start after a permission
+     * grant — or the waveform silently stays dead. */
+    private void attachWaveform() {
         if (waveformView != null) {
             if (engine instanceof KrokoEngine) {
                 ((KrokoEngine) engine).setWaveformView(waveformView);
             }
             waveformView.clear();
         }
-        engine.start();
     }
 
     /**
@@ -589,18 +598,25 @@ public class MainActivity extends Activity implements DictationEngine.Host {
      */
     private void askNotificationPermissionOnce() {
         if (android.os.Build.VERSION.SDK_INT < 33) return;
-        android.content.SharedPreferences prefs =
-                getSharedPreferences("pour_pro", MODE_PRIVATE);
-        if (prefs.getBoolean("notif_asked", false)) return;
-        prefs.edit().putBoolean("notif_asked", true).apply();
+        // Already granted — nothing to do, and don't burn the one-time flag.
         if (checkSelfPermission(
                 android.Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(
-                    new String[]{
-                            android.Manifest.permission.POST_NOTIFICATIONS},
-                    REQ_POST_NOTIF);
+                == PackageManager.PERMISSION_GRANTED) {
+            return;
         }
+        android.content.SharedPreferences prefs =
+                getSharedPreferences("pour_pro", MODE_PRIVATE);
+        // Only ever ask once per install. The flag is set BEFORE the
+        // system dialog appears, so even if the activity is killed while
+        // the dialog is up, we never prompt again. A permanent denial
+        // ("Don't ask again") is covered too: the flag stays set, so we
+        // never re-request.
+        if (prefs.getBoolean("notif_asked", false)) return;
+        prefs.edit().putBoolean("notif_asked", true).apply();
+        requestPermissions(
+                new String[]{
+                        android.Manifest.permission.POST_NOTIFICATIONS},
+                REQ_POST_NOTIF);
     }
 
     private void showPermNotice(boolean permanent) {
@@ -723,6 +739,7 @@ public class MainActivity extends Activity implements DictationEngine.Host {
                 if (startAfterGrant || pendingAutostart) {
                     startAfterGrant = false;
                     pendingAutostart = false;
+                    attachWaveform();
                     engine.start();
                 } else {
                     updateRecordUi(engine.isRecording());

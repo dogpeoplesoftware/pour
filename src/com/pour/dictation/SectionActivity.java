@@ -197,6 +197,8 @@ public class SectionActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (Ui.syncTheme(this)) return;
+        // Re-apply text size in case the setting changed in Settings.
+        bodyBox.setTextSize(16 * Ui.textScale(this));
         // A "Dictate" session appends to this section in the
         // database while this screen is away. Reload so the new words
         // are visible the moment the session ends — but unsaved typing

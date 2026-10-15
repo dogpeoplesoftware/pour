@@ -625,6 +625,9 @@ public class LibraryActivity extends Activity {
         super.onResume();
         if (Ui.syncTheme(this)) return;
         refresh();
+        // Re-apply text size: the adapter reads Ui.textScale() in
+        // bindView, so a re-bind picks up the new setting.
+        if (adapter != null) adapter.notifyDataSetChanged();
     }
 
     @Override

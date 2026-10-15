@@ -853,6 +853,9 @@ public class ProjectActivity extends Activity {
             return;
         }
         refresh();
+        // Re-apply text size: the adapter reads Ui.textScale() in
+        // bindView, so a re-bind picks up the new setting.
+        if (adapter != null) adapter.notifyDataSetChanged();
     }
 
     @Override

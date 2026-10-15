@@ -331,13 +331,17 @@ public class KrokoEngine implements Engine {
                 samples[i] = buf[i] / 32768.0f;
             }
             // Waveform
-            if (waveformView != null) {
+            // Capture the view reference locally: clearWaveformView() may
+            // null the field on the UI thread while this loop runs, and the
+            // posted Runnable would otherwise NPE.
+            final WaveformView wv = waveformView;
+            if (wv != null) {
                 float sum = 0;
                 for (int i = 0; i < n; i++) sum += samples[i] * samples[i];
                 final float rms = (float) Math.sqrt(sum / n);
-                waveformView.post(new Runnable() {
+                wv.post(new Runnable() {
                     @Override public void run() {
-                        waveformView.pushLevel(rms);
+                        wv.pushLevel(rms);
                     }
                 });
             }
