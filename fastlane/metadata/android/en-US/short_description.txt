@@ -1,1 +1,1 @@
-Offline voice dictation. Speak, and Pour writes it down.
+Write with your voice
