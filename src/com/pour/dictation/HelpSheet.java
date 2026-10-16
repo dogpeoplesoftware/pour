@@ -43,14 +43,14 @@ public final class HelpSheet {
             hp.bottomMargin = Ui.dp(a, 2);
             TextView h = new TextView(a);
             h.setText(sections[i][0]);
-            h.setTextColor(Ui.TEXT);
+            h.setTextColor(Ui.CARD_TEXT);
             h.setTextSize(14);
             h.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             content.addView(h, hp);
 
             TextView b = new TextView(a);
             b.setText(sections[i][1]);
-            b.setTextColor(Ui.MUTED);
+            b.setTextColor(Ui.CARD_MUTED);
             b.setTextSize(14);
             content.addView(b);
         }

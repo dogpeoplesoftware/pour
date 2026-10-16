@@ -447,7 +447,7 @@ public class SettingsActivity extends Activity {
                     0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
             tp.leftMargin = Ui.dp(this, 12);
             t.setText(p.name);
-            t.setTextColor(isCur ? Ui.ACCENT : Ui.TEXT);
+            t.setTextColor(isCur ? Ui.ACCENT : Ui.CARD_TEXT);
             if (isCur) {
                 t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             }
@@ -646,7 +646,7 @@ public class SettingsActivity extends Activity {
             row.setBackground(Ui.selectable(this));
             TextView t = new TextView(this);
             t.setText(labels[i]);
-            t.setTextColor(i == current ? Ui.ACCENT : Ui.TEXT);
+            t.setTextColor(i == current ? Ui.ACCENT : Ui.CARD_TEXT);
             if (i == current) {
                 t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             }

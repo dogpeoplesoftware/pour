@@ -1717,7 +1717,7 @@ public class ProjectActivity extends Activity {
     private void addSheetLabel(LinearLayout parent, String text) {
         TextView t = new TextView(this);
         t.setText(text);
-        t.setTextColor(Ui.MUTED);
+        t.setTextColor(Ui.CARD_MUTED);
         t.setTextSize(14);
         t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(

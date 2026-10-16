@@ -98,13 +98,13 @@ public final class Theme {
                 0xFF3D2E1A, 0xFF8A7355,
                 0xFFB07A2A, 0xFFFFF3DC,
                 0xFFE8D5A8, 0x66C49A3A),
-        // Night: deep navy for late-night writing.
-        new Preset("night", "Night", true, false,
-                0xFF0A0E1A, 0xFF121828, 0xFF2A3550,
-                0xFFE8ECF5, 0xFF8A94B0,
-                0xFFE8ECF5, 0xFF8A94B0,
-                0xFF4FA8C5, 0xFF0A0E1A,
-                0xFF1A2338, 0x664FA8C5),
+        // Synthwave: Miami Vice cyberpunk — deep indigo, neon pink pop.
+        new Preset("synthwave", "Synthwave", false, false,
+                0xFF1A1033, 0xFF2A1B4D, 0xFF3A2B5D,
+                0xFFEDE8FF, 0xFF8A7FA8,
+                0xFFEDE8FF, 0xFF8A7FA8,
+                0xFFFF2E88, 0xFFFFFFFF,
+                0xFF1E1438, 0x66FF2E88),
         // Forest: quiet green retreat.
         new Preset("forest", "Forest", true, false,
                 0xFF0F1A14, 0xFF16241B, 0xFF2A4030,

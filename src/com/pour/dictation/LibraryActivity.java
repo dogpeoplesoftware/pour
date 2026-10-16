@@ -1433,7 +1433,7 @@ public class LibraryActivity extends Activity {
                                       String text) {
         TextView t = new TextView(a);
         t.setText(text);
-        t.setTextColor(Ui.MUTED);
+        t.setTextColor(Ui.CARD_MUTED);
         t.setTextSize(14);
         t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(

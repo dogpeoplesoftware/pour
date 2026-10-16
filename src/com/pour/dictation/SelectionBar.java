@@ -78,7 +78,7 @@ public final class SelectionBar {
         bar.addView(clear);
 
         countView = new TextView(a);
-        countView.setTextColor(Ui.MUTED);
+        countView.setTextColor(Ui.CARD_MUTED);
         countView.setTextSize(13);
         countView.setSingleLine(true);
         LinearLayout.LayoutParams countParams =

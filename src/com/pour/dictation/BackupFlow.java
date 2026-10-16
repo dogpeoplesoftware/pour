@@ -23,7 +23,7 @@ public class BackupFlow {
         blurb.setText("All your pieces, projects, and folders"
                 + " as one file you keep. Restoring merges;"
                 + " it never deletes what's already here.");
-        blurb.setTextColor(Ui.MUTED);
+        blurb.setTextColor(Ui.CARD_MUTED);
         blurb.setTextSize(14);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
