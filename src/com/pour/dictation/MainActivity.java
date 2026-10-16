@@ -357,8 +357,8 @@ public class MainActivity extends Activity implements DictationEngine.Host {
         card.setPadding(cp, cp, cp, cp);
         scrollView = new ScrollView(this);
         transcriptView = new TextView(this);
-        transcriptView.setTextSize(16);
-        transcriptView.setTextColor(Ui.TEXT);
+        transcriptView.setTextSize(16 * Ui.textScale(this));
+        transcriptView.setTextColor(Ui.CARD_TEXT);
         transcriptView.setLineSpacing(0, 1.3f);
         transcriptView.setMinLines(6);
         scrollView.addView(transcriptView);
@@ -367,7 +367,7 @@ public class MainActivity extends Activity implements DictationEngine.Host {
 
         liveView = new TextView(this);
         liveView.setTextSize(14);
-        liveView.setTextColor(Ui.MUTED);
+        liveView.setTextColor(Ui.CARD_MUTED);
         card.addView(liveView);
 
         // Real-time audio waveform (tiny, subtle — width of record button).
@@ -382,7 +382,7 @@ public class MainActivity extends Activity implements DictationEngine.Host {
 
         countView = new TextView(this);
         countView.setGravity(Gravity.END);
-        countView.setTextColor(Ui.MUTED);
+        countView.setTextColor(Ui.CARD_MUTED);
         countView.setTextSize(14);
         card.addView(countView);
 
@@ -453,7 +453,7 @@ public class MainActivity extends Activity implements DictationEngine.Host {
         card.setPadding(p, p, p, p);
 
         draftMsg = new TextView(this);
-        draftMsg.setTextColor(Ui.TEXT);
+        draftMsg.setTextColor(Ui.CARD_TEXT);
         draftMsg.setTextSize(14);
         card.addView(draftMsg);
 
@@ -641,7 +641,7 @@ public class MainActivity extends Activity implements DictationEngine.Host {
         card.setPadding(p, p, p, p);
 
         permMsg = new TextView(this);
-        permMsg.setTextColor(Ui.TEXT);
+        permMsg.setTextColor(Ui.CARD_TEXT);
         permMsg.setTextSize(14);
         card.addView(permMsg);
 
@@ -692,6 +692,10 @@ public class MainActivity extends Activity implements DictationEngine.Host {
     protected void onResume() {
         super.onResume();
         if (Ui.syncTheme(this)) return;
+        // Re-apply dictation text size in case the setting changed.
+        if (transcriptView != null) {
+            transcriptView.setTextSize(16 * Ui.textScale(this));
+        }
         // A session may have crashed while this screen sat in the
         // background — surface its draft if one appeared.
         checkDraft();

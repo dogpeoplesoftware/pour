@@ -132,7 +132,7 @@ public final class SelectionBar {
         if (act.destructive()) {
             b.setTextColor(DESTRUCTIVE);
         } else {
-            b.setTextColor(Ui.TEXT);
+            b.setTextColor(Ui.CARD_TEXT);
         }
         int hp = Ui.dp(a, 14);
         int vp = Ui.dp(a, 12);

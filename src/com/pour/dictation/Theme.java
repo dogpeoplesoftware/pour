@@ -40,6 +40,8 @@ public final class Theme {
         public final int stroke;
         public final int text;
         public final int muted;
+        public final int cardText;
+        public final int cardMuted;
         public final int accent;
         public final int onAccent;
         public final int pressed;
@@ -47,6 +49,7 @@ public final class Theme {
 
         Preset(String id, String name, boolean pro, boolean lightChrome,
                int bg, int card, int stroke, int text, int muted,
+               int cardText, int cardMuted,
                int accent, int onAccent, int pressed, int highlight) {
             this.id = id;
             this.name = name;
@@ -57,6 +60,8 @@ public final class Theme {
             this.stroke = stroke;
             this.text = text;
             this.muted = muted;
+            this.cardText = cardText;
+            this.cardMuted = cardMuted;
             this.accent = accent;
             this.onAccent = onAccent;
             this.pressed = pressed;
@@ -69,11 +74,13 @@ public final class Theme {
         new Preset("pour", "Pour Light", false, true,
                 0xFFF3EBDD, 0xFFFFF8F0, 0xFFD6DEE3,
                 0xFF0F1113, 0xFF6F8FA3,
+                0xFF0F1113, 0xFF6F8FA3,
                 0xFF0E6A8E, 0xFFF3EBDD,
                 0xFFC9D9E2, 0x662E8FB7),
         // Pour Dark: dark gray with the same blue accent family.
         new Preset("pourdark", "Pour Dark", false, false,
                 0xFF1A1F23, 0xFF232A30, 0xFF3A4A55,
+                0xFFF3EBDD, 0xFF9CB4C1,
                 0xFFF3EBDD, 0xFF9CB4C1,
                 0xFF2E8FB7, 0xFF0F1113,
                 0xFF2A343B, 0x664FA8C5),
@@ -81,11 +88,13 @@ public final class Theme {
         new Preset("ember", "Ember", false, false,
                 0xFF0A0A0C, 0xFF151518, 0xFF2A2A30,
                 0xFFF5F5F4, 0xFF9E9EA8,
+                0xFFF5F5F4, 0xFF9E9EA8,
                 0xFFFF7A59, 0xFF1C1C1E,
                 0xFF232328, 0x66333333),
         // Sepia: warm manuscript paper, Highland-inspired.
         new Preset("sepia", "Sepia", true, true,
                 0xFFF5E6C8, 0xFFFFF3DC, 0xFFD9C49A,
+                0xFF3D2E1A, 0xFF8A7355,
                 0xFF3D2E1A, 0xFF8A7355,
                 0xFFB07A2A, 0xFFFFF3DC,
                 0xFFE8D5A8, 0x66C49A3A),
@@ -93,14 +102,23 @@ public final class Theme {
         new Preset("night", "Night", true, false,
                 0xFF0A0E1A, 0xFF121828, 0xFF2A3550,
                 0xFFE8ECF5, 0xFF8A94B0,
+                0xFFE8ECF5, 0xFF8A94B0,
                 0xFF4FA8C5, 0xFF0A0E1A,
                 0xFF1A2338, 0x664FA8C5),
         // Forest: quiet green retreat.
         new Preset("forest", "Forest", true, false,
                 0xFF0F1A14, 0xFF16241B, 0xFF2A4030,
                 0xFFE8F0E8, 0xFF8AA895,
+                0xFFE8F0E8, 0xFF8AA895,
                 0xFF6BAF7A, 0xFF0F1A14,
                 0xFF1E3024, 0x666BAF7A),
+        // Terminal: retro computing — dull plastic, green CRT screen.
+        new Preset("terminal", "Terminal", false, true,
+                0xFFC2BBAE, 0xFF0D140D, 0xFF9A9186,
+                0xFF1A1A1A, 0xFF6B6B62,
+                0xFF33DD66, 0xFF1A8A3A,
+                0xFF4A4A45, 0xFFF0EDE4,
+                0xFFA8A094, 0x6633DD66),
     };
 
     private Theme() { }
@@ -192,7 +210,7 @@ public final class Theme {
         int highlight = (accent & 0x00FFFFFF) | 0x66000000;
         return new Preset(CUSTOM_ID, "Custom", true,
                 luminance(bg) > 0.5,
-                bg, card, stroke, text, muted, accent, onAccent,
+                bg, card, stroke, text, muted, text, muted, accent, onAccent,
                 pressed, highlight);
     }
 
@@ -227,9 +245,19 @@ public final class Theme {
         };
     }
 
-    /** The raw persisted pick (what the user chose). */
+    /** The raw persisted pick (what the user chose). On fresh installs with
+     * no saved preference, follows the system theme: dark system -> Pour
+     * Dark, light system -> Pour Light. Never overrides an existing pick. */
     public static String selectedId(Context ctx) {
-        return Ui.prefs(ctx).getString(KEY_THEME, "pour");
+        android.content.SharedPreferences prefs = Ui.prefs(ctx);
+        if (prefs.contains(KEY_THEME)) {
+            return prefs.getString(KEY_THEME, "pour");
+        }
+        // No saved preference: follow the system.
+        int nightFlags = ctx.getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+        return nightFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                ? "pourdark" : "pour";
     }
 
     /**

@@ -25,6 +25,11 @@ public class Ui {
     public static int ON_ACCENT = 0xFFF3EBDD;
     public static int TEXT = 0xFF0F1113;
     public static int MUTED = 0xFF6F8FA3;
+    /** Text color for content on cards (may differ from TEXT when cards
+     * contrast with the background, e.g. Terminal theme). */
+    public static int CARD_TEXT = 0xFF0F1113;
+    /** Muted text color for content on cards. */
+    public static int CARD_MUTED = 0xFF6F8FA3;
     /** Pressed-state fill for selectable rows. */
     public static int PRESSED = 0xFFC9D9E2;
     /** Translucent highlight for search and read-along spans. */
@@ -38,6 +43,8 @@ public class Ui {
         STROKE = p.stroke;
         TEXT = p.text;
         MUTED = p.muted;
+        CARD_TEXT = p.cardText;
+        CARD_MUTED = p.cardMuted;
         ACCENT = p.accent;
         ON_ACCENT = p.onAccent;
         PRESSED = p.pressed;
@@ -205,7 +212,7 @@ public class Ui {
     /** Small dark card button. */
     public static void styleBtn(Activity a, Button b) {
         b.setBackground(card(a, 12));
-        b.setTextColor(TEXT);
+        b.setTextColor(CARD_TEXT);
         b.setLetterSpacing(0.08f);
         b.setMinWidth(0);
         b.setMinimumWidth(0);
@@ -437,6 +444,44 @@ public class Ui {
 
     /** 48dp muted header icon with the 8dp gap, CENTER_INSIDE
      * (24dp glyphs render at intrinsic size). */
+    /** Apply theme colors to a framework AlertDialog: rounded card
+     * background, theme title/message text, accent buttons. Call after
+     * show() — buttons only exist once the dialog is shown. Without
+     * this, the dialog uses the system theme, which can clash with
+     * the app theme (e.g. dark system dialog with light app text
+     * colors, or vice versa). */
+    public static void styleDialog(Activity a,
+                                   android.app.AlertDialog d) {
+        if (d == null || d.getWindow() == null) return;
+        // Rounded background in the theme card color, so the dialog
+        // always matches the current theme.
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(CARD);
+        bg.setCornerRadius(dp(a, 16));
+        d.getWindow().setBackgroundDrawable(bg);
+        // Title and message use the theme text color. Note: AlertDialog's
+        // internal title view id ("alertTitle") is not a public SDK
+        // constant, so look it up by name. Fall back to android.R.id.title.
+        int alertTitleId = a.getResources().getIdentifier(
+                "alertTitle", "id", "android");
+        TextView title = alertTitleId != 0
+                ? d.findViewById(alertTitleId) : null;
+        if (title == null) title = d.findViewById(android.R.id.title);
+        if (title != null) title.setTextColor(CARD_TEXT);
+        TextView msg = d.findViewById(android.R.id.message);
+        if (msg != null) msg.setTextColor(CARD_TEXT);
+        // Buttons use the theme accent color.
+        Button pos = d.getButton(
+                android.app.AlertDialog.BUTTON_POSITIVE);
+        if (pos != null) pos.setTextColor(ACCENT);
+        Button neg = d.getButton(
+                android.app.AlertDialog.BUTTON_NEGATIVE);
+        if (neg != null) neg.setTextColor(ACCENT);
+        Button neu = d.getButton(
+                android.app.AlertDialog.BUTTON_NEUTRAL);
+        if (neu != null) neu.setTextColor(ACCENT);
+    }
+
     private static ImageView headerIcon(Activity a, int resId, String desc,
             View.OnClickListener onClick, boolean mock) {
         ImageView b = new ImageView(a);

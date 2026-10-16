@@ -448,21 +448,21 @@ public class ProjectActivity extends Activity {
         LinearLayout textCol = new LinearLayout(this);
         textCol.setOrientation(LinearLayout.VERTICAL);
         h.titleView = new TextView(this);
-        h.titleView.setTextColor(Ui.TEXT);
+        h.titleView.setTextColor(Ui.CARD_TEXT);
         h.titleView.setTextSize(16);
         h.titleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         h.titleView.setSingleLine(true);
         h.titleView.setEllipsize(
                 android.text.TextUtils.TruncateAt.END);
         h.snippetView = new TextView(this);
-        h.snippetView.setTextColor(Ui.MUTED);
+        h.snippetView.setTextColor(Ui.CARD_MUTED);
         h.snippetView.setTextSize(14);
         h.snippetView.setLineSpacing(0, 1.3f);
         h.snippetView.setMaxLines(2);
         h.snippetView.setEllipsize(
                 android.text.TextUtils.TruncateAt.END);
         h.metaView = new TextView(this);
-        h.metaView.setTextColor(Ui.MUTED);
+        h.metaView.setTextColor(Ui.CARD_MUTED);
         h.metaView.setTextSize(14);
         textCol.addView(h.titleView);
         textCol.addView(h.snippetView);
@@ -529,9 +529,8 @@ public class ProjectActivity extends Activity {
         }
         // Titles stay fixed so the hierarchy survives the text-size
         // setting; only reading text (the snippet) scales.
-        float ts = Ui.textScale(this);
         h.titleView.setTextSize(16);
-        h.snippetView.setTextSize(14 * ts);
+        h.snippetView.setTextSize(14);
         int words = s.words;
         h.metaView.setText(words + (words == 1 ? " word" : " words"));
         boolean checked = selected.contains(s.id);
@@ -633,14 +632,14 @@ public class ProjectActivity extends Activity {
         LinearLayout textCol = new LinearLayout(this);
         textCol.setOrientation(LinearLayout.VERTICAL);
         h.titleView = new TextView(this);
-        h.titleView.setTextColor(Ui.TEXT);
+        h.titleView.setTextColor(Ui.CARD_TEXT);
         h.titleView.setTextSize(20);
         h.titleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         h.titleView.setSingleLine(true);
         h.titleView.setEllipsize(
                 android.text.TextUtils.TruncateAt.END);
         h.countView = new TextView(this);
-        h.countView.setTextColor(Ui.MUTED);
+        h.countView.setTextColor(Ui.CARD_MUTED);
         h.countView.setTextSize(14);
         textCol.addView(h.titleView);
         textCol.addView(h.countView);
@@ -853,9 +852,6 @@ public class ProjectActivity extends Activity {
             return;
         }
         refresh();
-        // Re-apply text size: the adapter reads Ui.textScale() in
-        // bindView, so a re-bind picks up the new setting.
-        if (adapter != null) adapter.notifyDataSetChanged();
     }
 
     @Override
@@ -1659,7 +1655,7 @@ public class ProjectActivity extends Activity {
 
     /** Move this project to trash with confirmation. */
     private void onDeleteProject() {
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg3 = new AlertDialog.Builder(this)
                 .setTitle("Move project to trash?")
                 .setMessage("The project and all its pieces will move to trash."
                         + " You can restore the whole project later.")
@@ -1675,7 +1671,9 @@ public class ProjectActivity extends Activity {
                     }
                 })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg3.show();
+        Ui.styleDialog(this, themedDlg3);
     }
 
     private void onJumpToSection() {
@@ -2025,7 +2023,7 @@ public class ProjectActivity extends Activity {
                     Toast.LENGTH_SHORT).show();
             return;
         }
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg2 = new AlertDialog.Builder(this)
                 .setMessage("Move piece \u201c" + s.name + "\u201d to trash?")
                 .setPositiveButton("Move to trash",
                         new DialogInterface.OnClickListener() {
@@ -2044,7 +2042,9 @@ public class ProjectActivity extends Activity {
                             }
                         })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg2.show();
+        Ui.styleDialog(this, themedDlg2);
     }
 
     /** Bulk delete of the checked sections and folders. Sections go to
@@ -2083,7 +2083,7 @@ public class ProjectActivity extends Activity {
         if (doomedSections.isEmpty() && folderTargets.isEmpty()) return;
         int n = doomedSections.size() + folderTargets.size();
         String what = n == 1 ? "1 item" : n + " items";
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg1 = new AlertDialog.Builder(this)
                 .setMessage("Move " + what + " to trash?")
                 .setPositiveButton("Move to trash",
                         new DialogInterface.OnClickListener() {
@@ -2124,7 +2124,9 @@ public class ProjectActivity extends Activity {
                             }
                         })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg1.show();
+        Ui.styleDialog(this, themedDlg1);
     }
 
     // ---------------- folders ----------------

@@ -58,7 +58,7 @@ public class UndoBar {
 
         TextView msg = new TextView(a);
         msg.setText(message);
-        msg.setTextColor(Ui.TEXT);
+        msg.setTextColor(Ui.CARD_TEXT);
         msg.setTextSize(14);
         msg.setSingleLine(true);
         msg.setEllipsize(android.text.TextUtils.TruncateAt.END);

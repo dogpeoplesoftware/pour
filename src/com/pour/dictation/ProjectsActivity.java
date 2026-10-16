@@ -118,10 +118,10 @@ public class ProjectsActivity extends Activity {
                             new LinearLayout(ProjectsActivity.this);
                     textCol.setOrientation(LinearLayout.VERTICAL);
                     titleView = new TextView(ProjectsActivity.this);
-                    titleView.setTextColor(Ui.TEXT);
+                    titleView.setTextColor(Ui.CARD_TEXT);
                     titleView.setTextSize(16);
                     metaView = new TextView(ProjectsActivity.this);
-                    metaView.setTextColor(Ui.MUTED);
+                    metaView.setTextColor(Ui.CARD_MUTED);
                     metaView.setTextSize(14);
                     textCol.addView(titleView);
                     textCol.addView(metaView);
@@ -373,7 +373,7 @@ public class ProjectsActivity extends Activity {
         }
         if (targets.isEmpty()) return;
         final int n = targets.size();
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg2 = new AlertDialog.Builder(this)
                 .setMessage("Move " + n
                         + (n == 1 ? " project" : " projects")
                         + " to trash? You can restore them later.")
@@ -403,7 +403,9 @@ public class ProjectsActivity extends Activity {
                             }
                         })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg2.show();
+        Ui.styleDialog(this, themedDlg2);
     }
 
     /**
@@ -869,7 +871,7 @@ public class ProjectsActivity extends Activity {
     }
 
     private void onDeleteConfirm(final Project p) {
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg1 = new AlertDialog.Builder(this)
                 .setMessage("Move \u201c" + p.name
                         + "\u201d to trash? The project and all"
                         + " its pieces will move to trash.")
@@ -881,7 +883,9 @@ public class ProjectsActivity extends Activity {
                             }
                         })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg1.show();
+        Ui.styleDialog(this, themedDlg1);
     }
 
     /** Delete the project and show undo. Undo restores the

@@ -23,8 +23,11 @@ public class NoteDialogs {
         input.setText(initial == null ? "" : initial);
         input.setSingleLine(true);
         input.setHint(hint);
-        input.setTextColor(Ui.TEXT);
-        input.setHintTextColor(Ui.MUTED);
+        input.setTextColor(Ui.CARD_TEXT);
+        input.setHintTextColor(Ui.CARD_MUTED);
+        // Underline/accent follows the theme, not the system default.
+        input.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(Ui.ACCENT));
         input.selectAll();
         int p = Ui.dp(a, 20);
         LinearLayout wrap = new LinearLayout(a);
@@ -32,7 +35,7 @@ public class NoteDialogs {
         wrap.addView(input, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
-        new AlertDialog.Builder(a)
+        AlertDialog dialog = new AlertDialog.Builder(a)
                 .setTitle(title)
                 .setView(wrap)
                 .setPositiveButton("Save",
@@ -44,7 +47,11 @@ public class NoteDialogs {
                             }
                         })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        dialog.show();
+        // Style after show: the dialog background, title, and buttons
+        // must follow the app theme, not the system dialog theme.
+        Ui.styleDialog(a, dialog);
     }
 
     /** Rename a note without opening it; onDone runs after saving. */
@@ -93,20 +100,24 @@ public class NoteDialogs {
             explainer.setText("Name your new project. The piece you are"
                     + " sending becomes its first piece.");
         }
-        explainer.setTextColor(Ui.MUTED);
+        explainer.setTextColor(Ui.CARD_MUTED);
         explainer.setTextSize(14);
         form.addView(explainer);
         final EditText nameBox = new EditText(a);
         nameBox.setHint("Project name");
         nameBox.setSingleLine(true);
-        nameBox.setTextColor(Ui.TEXT);
-        nameBox.setHintTextColor(Ui.MUTED);
+        nameBox.setTextColor(Ui.CARD_TEXT);
+        nameBox.setHintTextColor(Ui.CARD_MUTED);
+        nameBox.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(Ui.ACCENT));
         final EditText sectionBox = withSection ? new EditText(a) : null;
         if (sectionBox != null) {
             sectionBox.setHint("First piece");
             sectionBox.setSingleLine(true);
-            sectionBox.setTextColor(Ui.TEXT);
-            sectionBox.setHintTextColor(Ui.MUTED);
+            sectionBox.setTextColor(Ui.CARD_TEXT);
+            sectionBox.setHintTextColor(Ui.CARD_MUTED);
+            sectionBox.setBackgroundTintList(
+                    android.content.res.ColorStateList.valueOf(Ui.ACCENT));
         }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -114,7 +125,7 @@ public class NoteDialogs {
         lp.topMargin = Ui.dp(a, 12);
         form.addView(nameBox, lp);
         if (sectionBox != null) form.addView(sectionBox, lp);
-        new AlertDialog.Builder(a)
+        AlertDialog dialog = new AlertDialog.Builder(a)
                 .setTitle("New project")
                 .setView(form)
                 .setPositiveButton("Create",
@@ -135,6 +146,8 @@ public class NoteDialogs {
                             }
                         })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        dialog.show();
+        Ui.styleDialog(a, dialog);
     }
 }

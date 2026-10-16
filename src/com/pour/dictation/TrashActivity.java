@@ -304,7 +304,7 @@ public class TrashActivity extends Activity {
     }
 
     private void onDeleteForever(final TrashItem item) {
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg2 = new AlertDialog.Builder(this)
                 .setMessage("Permanently delete \u201c" + item.title
                         + "\u201d? This cannot be undone.")
                 .setPositiveButton("Delete forever",
@@ -318,7 +318,9 @@ public class TrashActivity extends Activity {
                     }
                 })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg2.show();
+        Ui.styleDialog(this, themedDlg2);
     }
 
     private void onEmptyTrash() {
@@ -328,7 +330,7 @@ public class TrashActivity extends Activity {
                     Toast.LENGTH_SHORT).show();
             return;
         }
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg1 = new AlertDialog.Builder(this)
                 .setMessage("Permanently delete all " + n
                         + (n == 1 ? " piece" : " pieces")
                         + " in trash? This cannot be undone.")
@@ -342,6 +344,8 @@ public class TrashActivity extends Activity {
                     }
                 })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg1.show();
+        Ui.styleDialog(this, themedDlg1);
     }
 }

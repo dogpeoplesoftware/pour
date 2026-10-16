@@ -51,7 +51,7 @@ public class Sheet {
         if (title != null && !title.isEmpty()) {
             TextView t = new TextView(a);
             t.setText(title);
-            t.setTextColor(Ui.TEXT);
+            t.setTextColor(Ui.CARD_TEXT);
             t.setTextSize(16);
             t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(
@@ -105,7 +105,7 @@ public class Sheet {
 
         TextView t = new TextView(a);
         t.setText(title);
-        t.setTextColor(Ui.TEXT);
+        t.setTextColor(Ui.CARD_TEXT);
         t.setTextSize(16);
         t.setSingleLine(true);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -113,8 +113,7 @@ public class Sheet {
         if (subtitle != null && !subtitle.isEmpty()) {
             TextView s = new TextView(a);
             s.setText(subtitle);
-            // Use TEXT at 70% opacity for better contrast than MUTED on light themes.
-            s.setTextColor((Ui.TEXT & 0x00FFFFFF) | 0xB3000000);
+            s.setTextColor(Ui.CARD_MUTED);
             s.setTextSize(14);
             s.setSingleLine(true);
             s.setEllipsize(android.text.TextUtils.TruncateAt.END);

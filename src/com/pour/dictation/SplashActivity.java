@@ -55,19 +55,34 @@ public class SplashActivity extends Activity {
                 Gravity.TOP);
         root.addView(headerRow, headerParams);
 
-        // Centered splash content: same 28dp side margins as before (8dp
-        // inside the 20dp root padding) and the same full-screen vertical
-        // centering. Its position no longer affects the header above.
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setGravity(Gravity.CENTER);
-        FrameLayout.LayoutParams contentParams = new FrameLayout.LayoutParams(
+        // Centered splash content, split into two independently-positioned
+        // blocks so the logo + tagline can sit slightly above true center
+        // (optical centering) while the buttons stay exactly where the old
+        // single centered block put them. Same 28dp side margins as before
+        // (8dp inside the 20dp root padding). Both start invisible to avoid
+        // a one-frame jump when their final offsets are applied below.
+        LinearLayout brandBlock = new LinearLayout(this);
+        brandBlock.setOrientation(LinearLayout.VERTICAL);
+        brandBlock.setGravity(Gravity.CENTER);
+        brandBlock.setVisibility(View.INVISIBLE);
+        FrameLayout.LayoutParams brandParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER);
-        contentParams.leftMargin = Ui.dp(this, 8);
-        contentParams.rightMargin = Ui.dp(this, 8);
-        root.addView(content, contentParams);
+        brandParams.leftMargin = Ui.dp(this, 8);
+        brandParams.rightMargin = Ui.dp(this, 8);
+        root.addView(brandBlock, brandParams);
+
+        LinearLayout buttonBlock = new LinearLayout(this);
+        buttonBlock.setOrientation(LinearLayout.VERTICAL);
+        buttonBlock.setVisibility(View.INVISIBLE);
+        FrameLayout.LayoutParams buttonParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER);
+        buttonParams.leftMargin = Ui.dp(this, 8);
+        buttonParams.rightMargin = Ui.dp(this, 8);
+        root.addView(buttonBlock, buttonParams);
 
         TextView name = new TextView(this);
         name.setText("POUR");
@@ -82,7 +97,7 @@ public class SplashActivity extends Activity {
             name.setTypeface(Typeface.DEFAULT_BOLD);
         }
         name.setGravity(Gravity.CENTER);
-        content.addView(name);
+        brandBlock.addView(name);
 
         TextView desc = new TextView(this);
         desc.setText("Speak, and Pour writes it down.\n"
@@ -96,7 +111,7 @@ public class SplashActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT);
         descParams.topMargin = Ui.dp(this, 20);
         descParams.bottomMargin = Ui.dp(this, 40);
-        content.addView(desc, descParams);
+        brandBlock.addView(desc, descParams);
 
         Button recBtn = new Button(this);
         recBtn.setText("Start recording");
@@ -116,7 +131,7 @@ public class SplashActivity extends Activity {
                 startActivity(i);
             }
         });
-        content.addView(recBtn, new LinearLayout.LayoutParams(
+        buttonBlock.addView(recBtn, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
 
@@ -136,7 +151,7 @@ public class SplashActivity extends Activity {
                         LibraryActivity.class));
             }
         });
-        content.addView(libBtn, libParams);
+        buttonBlock.addView(libBtn, libParams);
 
         Button projBtn = new Button(this);
         projBtn.setText("Projects");
@@ -154,9 +169,38 @@ public class SplashActivity extends Activity {
                         ProjectsActivity.class));
             }
         });
-        content.addView(projBtn, projParams);
+        buttonBlock.addView(projBtn, projParams);
 
         setContentView(root);
+        // Final positioning, applied after the first layout pass so both
+        // blocks have measured heights. The buttons land exactly where the
+        // old single centered block put them (pushed down by half the brand
+        // block's height); the brand block keeps its old vertical center
+        // minus ~3.5% of screen height (optical centering). No clipping
+        // risk: this moves the blocks via layout margins, not translation.
+        root.post(new Runnable() {
+            @Override public void run() {
+                int hBrand = brandBlock.getHeight();
+                int hBtns = buttonBlock.getHeight();
+                if (hBrand <= 0 || hBtns <= 0) {
+                    brandBlock.setVisibility(View.VISIBLE);
+                    buttonBlock.setVisibility(View.VISIBLE);
+                    return;
+                }
+                int shiftUp = (int) (getResources().getDisplayMetrics()
+                        .heightPixels * 0.035f);
+                FrameLayout.LayoutParams bp = (FrameLayout.LayoutParams)
+                        buttonBlock.getLayoutParams();
+                bp.topMargin = hBrand / 2;
+                buttonBlock.setLayoutParams(bp);
+                FrameLayout.LayoutParams brp = (FrameLayout.LayoutParams)
+                        brandBlock.getLayoutParams();
+                brp.topMargin = -(hBtns / 2 + shiftUp);
+                brandBlock.setLayoutParams(brp);
+                brandBlock.setVisibility(View.VISIBLE);
+                buttonBlock.setVisibility(View.VISIBLE);
+            }
+        });
         checkModel();
         // Always go to Capture (MainActivity) — never auto-skip to Bucket.
         // The user explicitly wants the landing screen, not the Bucket.

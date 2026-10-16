@@ -623,6 +623,11 @@ public class NotesDb extends SQLiteOpenHelper {
         }
     }
 
+    /** Total number of notes in the database, including trashed ones. */
+    public int noteCount() {
+        return intQuery("SELECT COUNT(*) FROM notes");
+    }
+
     /** Count of items currently in trash. */
     public int trashCount() {
         int n = intQuery("SELECT COUNT(*) FROM notes"

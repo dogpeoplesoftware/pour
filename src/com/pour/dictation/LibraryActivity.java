@@ -266,14 +266,14 @@ public class LibraryActivity extends Activity {
                             new LinearLayout(LibraryActivity.this);
                     textCol.setOrientation(LinearLayout.VERTICAL);
                     titleView = new TextView(LibraryActivity.this);
-                    titleView.setTextColor(Ui.TEXT);
+                    titleView.setTextColor(Ui.CARD_TEXT);
                     titleView.setTextSize(16);
                     titleView.setTypeface(Typeface.DEFAULT_BOLD);
                     metaView = new TextView(LibraryActivity.this);
-                    metaView.setTextColor(Ui.MUTED);
+                    metaView.setTextColor(Ui.CARD_MUTED);
                     metaView.setTextSize(14);
                     previewView = new TextView(LibraryActivity.this);
-                    previewView.setTextColor(Ui.MUTED);
+                    previewView.setTextColor(Ui.CARD_MUTED);
                     previewView.setTextSize(14);
                     previewView.setLineSpacing(0, 1.3f);
                     // Two lines of body: the triage ceiling — enough to
@@ -335,9 +335,8 @@ public class LibraryActivity extends Activity {
                 }
                 Object item = getItem(position);
                 String q = searchBox.getText().toString().trim();
-                float ts = Ui.textScale(LibraryActivity.this);
                 titleView.setTextSize(16);
-                previewView.setTextSize(14 * ts);
+                previewView.setTextSize(14);
                 if (item instanceof Section) {
                     // A project section found via search: no checkbox
                     // (bulk selection is for Bucket notes), tap opens
@@ -625,9 +624,7 @@ public class LibraryActivity extends Activity {
         super.onResume();
         if (Ui.syncTheme(this)) return;
         refresh();
-        // Re-apply text size: the adapter reads Ui.textScale() in
-        // bindView, so a re-bind picks up the new setting.
-        if (adapter != null) adapter.notifyDataSetChanged();
+        maybeInsertWelcomePiece();
     }
 
     @Override
@@ -759,6 +756,31 @@ public class LibraryActivity extends Activity {
             else if (o instanceof Section) words += ((Section) o).words;
         }
         todayView.setText(words + (words == 1 ? " word" : " words"));
+    }
+
+    /** Insert one welcome piece the first time the Bucket opens empty,
+     * so new users aren't staring at a blank screen. Runs once; the
+     * flag is set after a successful insert (or if pieces already
+     * exist), so it never re-runs. */
+    private void maybeInsertWelcomePiece() {
+        android.content.SharedPreferences prefs =
+                getSharedPreferences("pour_prefs", MODE_PRIVATE);
+        if (prefs.getBoolean("welcome_shown", false)) return;
+        if (!notes.isEmpty()) {
+            prefs.edit().putBoolean("welcome_shown", true).apply();
+            return;
+        }
+        String text = "This is a piece of writing."
+                + " Words you dictate or type land here as a piece.\n\n"
+                + "Tap it to open and edit. Use the menu (three dots) to"
+                + " rename, move it to a project, or move it to trash.\n\n"
+                + "Happy writing!";
+        long id = db.insert("Welcome to Pour", text, null,
+                System.currentTimeMillis(), null, NotesDb.countWords(text));
+        if (id > 0) {
+            prefs.edit().putBoolean("welcome_shown", true).apply();
+            refresh();
+        }
     }
 
     /** Sort mode label: Custom is the manual drag order. */
@@ -1633,7 +1655,7 @@ public class LibraryActivity extends Activity {
         }
         if (doomed.isEmpty()) return;
         final int count = doomed.size();
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg2 = new AlertDialog.Builder(this)
                 .setMessage("Move " + count
                         + (count == 1 ? " piece" : " pieces")
                         + " to trash?")
@@ -1660,11 +1682,13 @@ public class LibraryActivity extends Activity {
                             }
                         })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg2.show();
+        Ui.styleDialog(this, themedDlg2);
     }
 
     private void onDeleteConfirm(final Note n) {
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg1 = new AlertDialog.Builder(this)
                 .setMessage("Move \u201c" + n.title + "\u201d to trash?")
                 .setPositiveButton("Move to trash",
                         new DialogInterface.OnClickListener() {
@@ -1684,7 +1708,9 @@ public class LibraryActivity extends Activity {
                             }
                         })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg1.show();
+        Ui.styleDialog(this, themedDlg1);
     }
 
     /** Rename a note without opening it. */

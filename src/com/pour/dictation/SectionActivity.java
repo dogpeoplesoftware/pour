@@ -106,7 +106,7 @@ public class SectionActivity extends Activity {
         bodyBox = new EditText(this);
         bodyBox.setText(section.body);
         bodyBox.setTextColor(Ui.TEXT);
-        bodyBox.setTextSize(16 * Ui.textScale(this));
+        bodyBox.setTextSize(16);
         bodyBox.setLineSpacing(0, 1.3f);
         // Notion-style: the hint teaches the one action, then vanishes
         // on first input.
@@ -197,8 +197,6 @@ public class SectionActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (Ui.syncTheme(this)) return;
-        // Re-apply text size in case the setting changed in Settings.
-        bodyBox.setTextSize(16 * Ui.textScale(this));
         // A "Dictate" session appends to this section in the
         // database while this screen is away. Reload so the new words
         // are visible the moment the session ends — but unsaved typing
@@ -360,11 +358,30 @@ public class SectionActivity extends Activity {
         return body.isEmpty() ? title : body;
     }
 
-    /** The three overflow actions, same order as the Bucket editor. */
+    /** The overflow actions, same order as the Bucket editor. */
     private void onOverflow() {
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         final android.app.Dialog[] sheet = new android.app.Dialog[1];
+        content.addView(Sheet.row(this, "Rename",
+                "Rename this piece",
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        if (sheet[0] != null) sheet[0].dismiss();
+                        String cur = titleBox.getText().toString().trim();
+                        NoteDialogs.textInput(SectionActivity.this,
+                                "Rename piece", null,
+                                cur.isEmpty() ? "Untitled piece" : cur,
+                                new NoteDialogs.TextCallback() {
+                                    @Override public void onText(String t) {
+                                        String name = t.isEmpty()
+                                                ? "Untitled piece" : t;
+                                        titleBox.setText(name);
+                                        onSave();
+                                    }
+                                });
+                    }
+                }));
         content.addView(Sheet.row(this, "Split at cursor",
                 "Split into two pieces where the cursor is",
                 new View.OnClickListener() {
@@ -427,7 +444,7 @@ public class SectionActivity extends Activity {
     private void onDeleteConfirm() {
         String title = section.name == null || section.name.trim().isEmpty()
                 ? "this piece" : "\u201c" + section.name.trim() + "\u201d";
-        new AlertDialog.Builder(this)
+        android.app.AlertDialog themedDlg1 = new AlertDialog.Builder(this)
                 .setMessage("Move " + title + " to trash?")
                 .setPositiveButton("Move to trash",
                         new DialogInterface.OnClickListener() {
@@ -442,7 +459,9 @@ public class SectionActivity extends Activity {
                             }
                         })
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+        themedDlg1.show();
+        Ui.styleDialog(this, themedDlg1);
     }
 
     @Override
