@@ -105,7 +105,7 @@ public class SectionActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         bodyBox = new EditText(this);
         bodyBox.setText(section.body);
-        bodyBox.setTextColor(Ui.TEXT);
+        bodyBox.setTextColor(Ui.CARD_TEXT);
         bodyBox.setTextSize(16);
         bodyBox.setLineSpacing(0, 1.3f);
         // Notion-style: the hint teaches the one action, then vanishes
@@ -149,7 +149,7 @@ public class SectionActivity extends Activity {
         bp.topMargin = Ui.dp(this, 12);
         bottomBar.setLayoutParams(bp);
         Button dictateBtn = new Button(this);
-        dictateBtn.setText("Dictate");
+        dictateBtn.setText("Say more");
         Ui.stylePrimaryBtn(this, dictateBtn);
         android.graphics.drawable.Drawable mic =
                 getResources().getDrawable(R.drawable.ic_mic);

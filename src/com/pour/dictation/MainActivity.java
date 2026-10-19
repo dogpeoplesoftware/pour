@@ -90,16 +90,9 @@ public class MainActivity extends Activity implements DictationEngine.Host {
                     REQ_RECORD_AUDIO);
         }
 
-        // Continue an existing note ("Dictate more" from the note screen)
-        // or a section's body ("Dictate more" from the section editor).
-        appendNoteId = getIntent().getLongExtra("append_note_id", -1);
-        appendSectionId = getIntent().getLongExtra("append_section_id", -1);
-        appendSeed = getIntent().getStringExtra("append_seed");
-        appendTitle = getIntent().getStringExtra("append_title");
-        if (appendTitle != null && !appendTitle.trim().isEmpty()) {
-            setStatus("Continuing \u201c" + appendTitle.trim()
-                    + "\u201d. Tap to talk.");
-        }
+        // Continue an existing note ("Say more" from the note screen)
+        // or a section's body ("Say more" from the section editor).
+        applyAppendIntent(getIntent());
 
         // From the recording notification's actions (Stop / Pause).
         handleServiceAction(getIntent());
@@ -121,10 +114,32 @@ public class MainActivity extends Activity implements DictationEngine.Host {
         }
     }
 
+    /** Read append-mode extras from an intent and update the UI to show
+     * what's being added to. Called from onCreate and onNewIntent (the
+     * activity is singleTop, so a "Say more" tap while it's already alive
+     * arrives via onNewIntent, not a fresh onCreate). */
+    private void applyAppendIntent(Intent intent) {
+        appendNoteId = intent.getLongExtra("append_note_id", -1);
+        appendSectionId = intent.getLongExtra("append_section_id", -1);
+        appendSeed = intent.getStringExtra("append_seed");
+        appendTitle = intent.getStringExtra("append_title");
+        if (appendTitle != null && !appendTitle.trim().isEmpty()) {
+            setStatus("Continuing \u201c" + appendTitle.trim()
+                    + "\u201d. Tap to talk.");
+        }
+        // Show the existing writing immediately so it's clear what's
+        // being added to — no waiting for the engine.
+        if (transcriptView != null && appendSeed != null
+                && !appendSeed.trim().isEmpty()) {
+            transcriptView.setText(ParaBreaks.apply(appendSeed));
+        }
+    }
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        applyAppendIntent(intent);
         handleServiceAction(intent);
         if (intent.getBooleanExtra("autostart", false) && !engine.isRecording()
                 && engine.hasMicPermission() && engine.isAvailable()
@@ -364,6 +379,12 @@ public class MainActivity extends Activity implements DictationEngine.Host {
         scrollView.addView(transcriptView);
         card.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        // Append mode: show the existing writing immediately so it's
+        // clear what's being added to — no waiting for the engine.
+        if (appendSeed != null && !appendSeed.trim().isEmpty()) {
+            transcriptView.setText(ParaBreaks.apply(appendSeed));
+        }
 
         liveView = new TextView(this);
         liveView.setTextSize(14);

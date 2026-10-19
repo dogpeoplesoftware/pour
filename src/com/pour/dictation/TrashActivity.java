@@ -220,9 +220,14 @@ public class TrashActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackground(Ui.selectable(this));
-        int p = Ui.dp(this, 12);
+        row.setBackground(Ui.card(this, 16));
+        int p = Ui.dp(this, 16);
         row.setPadding(p, p, p, p);
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        rp.bottomMargin = Ui.dp(this, 12);
+        row.setLayoutParams(rp);
 
         LinearLayout textCol = new LinearLayout(this);
         textCol.setOrientation(LinearLayout.VERTICAL);
@@ -232,7 +237,7 @@ public class TrashActivity extends Activity {
 
         TextView titleView = new TextView(this);
         titleView.setText(item.title);
-        titleView.setTextColor(Ui.TEXT);
+        titleView.setTextColor(Ui.CARD_TEXT);
         titleView.setTextSize(16);
         titleView.setSingleLine(true);
         titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -241,7 +246,7 @@ public class TrashActivity extends Activity {
         if (!item.snippet.isEmpty()) {
             TextView snippetView = new TextView(this);
             snippetView.setText(item.snippet);
-            snippetView.setTextColor(Ui.MUTED);
+            snippetView.setTextColor(Ui.CARD_MUTED);
             snippetView.setTextSize(14);
             snippetView.setSingleLine(true);
             snippetView.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -252,7 +257,7 @@ public class TrashActivity extends Activity {
         metaView.setText("Deleted " + daysAgo(item.deletedAt)
                 + " · " + item.words
                 + (item.words == 1 ? " word" : " words"));
-        metaView.setTextColor(Ui.MUTED);
+        metaView.setTextColor(Ui.CARD_MUTED);
         metaView.setTextSize(12);
         textCol.addView(metaView);
         row.addView(textCol);

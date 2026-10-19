@@ -444,7 +444,9 @@ public class ProjectActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackgroundColor(0x00000000);
+        row.setBackground(Ui.card(this, 16));
+        int cp = Ui.dp(this, 16);
+        row.setPadding(cp, cp, cp, cp);
         LinearLayout textCol = new LinearLayout(this);
         textCol.setOrientation(LinearLayout.VERTICAL);
         h.titleView = new TextView(this);
@@ -514,8 +516,9 @@ public class ProjectActivity extends Activity {
         // Sections nested in a folder are inset so the hierarchy reads
         // at a glance; loose top-level sections stay flush. Applied on
         // every bind because rows are recycled across containers.
-        row.setPadding(Ui.dp(this, s.folderId != -1 ? 24 : 0),
-                Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        // 16dp is the card's own padding; nested sections add 24dp indent.
+        row.setPadding(Ui.dp(this, 16 + (s.folderId != -1 ? 24 : 0)),
+                Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 16));
         h.overflowBtn.setTag(s);
         h.selectBtn.setTag(s);
         String name = s.name == null || s.name.trim().isEmpty()
@@ -585,10 +588,9 @@ public class ProjectActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        int pv = Ui.dp(this, 16);
-        int ph = Ui.dp(this, 4);
-        row.setPadding(ph, pv, ph, pv);
-        row.setBackgroundColor(0x00000000);
+        int cp = Ui.dp(this, 16);
+        row.setPadding(cp, cp, cp, cp);
+        row.setBackground(Ui.card(this, 16));
         // Checkbox on the left.
         h.selectBtn = iconButton(R.drawable.ic_box,
                 "Select folder");

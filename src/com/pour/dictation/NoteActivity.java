@@ -103,7 +103,7 @@ public class NoteActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         transcriptBox = new EditText(this);
         transcriptBox.setText(note.transcript);
-        transcriptBox.setTextColor(Ui.TEXT);
+        transcriptBox.setTextColor(Ui.CARD_TEXT);
         transcriptBox.setTextSize(16);
         transcriptBox.setLineSpacing(0, 1.3f);
         transcriptBox.setHintTextColor(Ui.MUTED);
@@ -144,7 +144,7 @@ public class NoteActivity extends Activity {
         bp.topMargin = Ui.dp(this, 12);
         bottomBar.setLayoutParams(bp);
         Button dictateBtn = new Button(this);
-        dictateBtn.setText("Dictate");
+        dictateBtn.setText("Say more");
         Ui.stylePrimaryBtn(this, dictateBtn);
         android.graphics.drawable.Drawable mic =
                 getResources().getDrawable(R.drawable.ic_mic);
