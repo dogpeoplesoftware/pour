@@ -994,6 +994,24 @@ public class NotesDb extends SQLiteOpenHelper {
         return out;
     }
 
+    /** Same as searchSections, scoped to one project. Used by the
+     * project view's search box. */
+    public List<Section> searchSectionsInProject(long projectId,
+            String query) {
+        List<Section> out = new ArrayList<>();
+        String q = query == null ? "" : query.trim();
+        if (q.isEmpty()) return out;
+        String like = "%" + q + "%";
+        Cursor c = getReadableDatabase().query("sections", null,
+                "project_id=? AND (name LIKE ? OR body LIKE ?)"
+                        + " AND deleted_at IS NULL",
+                new String[]{String.valueOf(projectId), like, like},
+                null, null, "_id DESC");
+        while (c.moveToNext()) out.add(sectionFromCursor(c));
+        c.close();
+        return out;
+    }
+
     /** Persist a whole new loose-section order (drag-and-drop commit).
      * Only loose sections move here; in-folder order is untouched. The
      * merged top-level numbering is rebuilt behind it. */

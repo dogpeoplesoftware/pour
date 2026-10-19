@@ -125,8 +125,8 @@ public class LibraryActivity extends Activity {
         searchBox = new EditText(this);
         searchBox.setHint("Search pieces\u2026");
         searchBox.setSingleLine(true);
-        searchBox.setTextColor(Ui.TEXT);
-        searchBox.setHintTextColor(Ui.MUTED);
+        searchBox.setTextColor(Ui.CARD_TEXT);
+        searchBox.setHintTextColor(Ui.CARD_MUTED);
         searchBox.setBackground(Ui.card(this, 16));
         int sp = Ui.dp(this, 16);
         searchBox.setPadding(sp, Ui.dp(this, 12), sp, Ui.dp(this, 12));

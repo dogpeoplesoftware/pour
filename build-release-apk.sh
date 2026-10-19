@@ -18,7 +18,14 @@ export PATH="$JAVA_HOME/bin:$BT:$PATH"
 BUILD="$APP/build-release"
 WHISPER_PREBUILT="$APP/native/whisper-jni/prebuilt"
 MOONSHINE_PREBUILT="$APP/native/moonshine-prebuilt"
-SHERPA_PREBUILT="$APP/native/sherpa-prebuilt"
+# Sherpa native libs: built from source (sherpa-onnx v1.13.5, Apache 2.0).
+# If not present, build them now — no prebuilt binaries required.
+SHERPA_FROM_SOURCE="$APP/native/sherpa-from-source"
+if [ ! -f "$SHERPA_FROM_SOURCE/arm64-v8a/libsherpa-onnx-jni.so" ]; then
+    echo "--- 0. building sherpa-onnx native libs from source"
+    "$APP/build-native-from-source.sh" "$SHERPA_FROM_SOURCE/arm64-v8a" || exit 1
+fi
+SHERPA_PREBUILT="$SHERPA_FROM_SOURCE"
 KOTLIN_JAR="$APP/libs/kotlin-stdlib.jar"
 SHERPA_JAR="$APP/libs/sherpa-classes.jar"
 KEYSTORE="$APP/pour-pro-release.keystore"

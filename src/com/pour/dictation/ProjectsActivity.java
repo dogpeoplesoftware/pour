@@ -12,10 +12,13 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -33,8 +36,18 @@ import java.util.Set;
 public class ProjectsActivity extends Activity {
 
     private NotesDb db;
-    private ArrayAdapter<Project> adapter;
+    private BaseAdapter adapter;
     private final List<Project> projects = new ArrayList<>();
+    /** Adapter rows: Project in normal mode; in search mode, String
+     * headers (project names) interleaved with matching Sections. */
+    private final List<Object> rows = new ArrayList<>();
+    private static final int TYPE_PROJECT = 0;
+    private static final int TYPE_HEADER = 1;
+    private static final int TYPE_SECTION = 2;
+    /** Cross-project search: filters pieces by title/body as you type. */
+    private EditText searchBox;
+    private Button clearSearchBtn;
+    private TextView emptyView;
     private ListView list;
     private android.widget.FrameLayout listSlot;
 
@@ -90,14 +103,101 @@ public class ProjectsActivity extends Activity {
         ppp.topMargin = Ui.dp(this, 4);
         root.addView(purposeView, ppp);
 
+        // Cross-project search: same pattern as the Bucket. Searches
+        // piece titles and body text across all projects; results are
+        // grouped under project name headers.
+        searchBox = new EditText(this);
+        searchBox.setHint("Search all projects\u2026");
+        searchBox.setSingleLine(true);
+        searchBox.setTextColor(Ui.CARD_TEXT);
+        searchBox.setHintTextColor(Ui.CARD_MUTED);
+        searchBox.setBackground(Ui.card(this, 16));
+        int ssp = Ui.dp(this, 16);
+        searchBox.setPadding(ssp, Ui.dp(this, 12), ssp, Ui.dp(this, 12));
+
+        clearSearchBtn = new Button(this);
+        clearSearchBtn.setText("\u2715");
+        clearSearchBtn.setTextColor(Ui.MUTED);
+        clearSearchBtn.setBackgroundColor(0x00000000);
+        clearSearchBtn.setMinWidth(0);
+        clearSearchBtn.setMinimumWidth(0);
+        clearSearchBtn.setMinHeight(Ui.dp(this, 48));
+        clearSearchBtn.setMinimumHeight(Ui.dp(this, 48));
+        clearSearchBtn.setContentDescription("Clear search");
+        clearSearchBtn.setVisibility(View.GONE);
+        clearSearchBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                searchBox.setText("");
+            }
+        });
+
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        searchRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        searchRow.addView(searchBox, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        searchRow.addView(clearSearchBtn);
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        searchParams.topMargin = Ui.dp(this, 12);
+        root.addView(searchRow, searchParams);
+
+        searchBox.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a,
+                    int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a,
+                    int b, int c) { }
+            @Override public void afterTextChanged(Editable s) { refresh(); }
+        });
+
         list = new ListView(this);
         list.setDivider(new ColorDrawable(Ui.BG));
         list.setDividerHeight(Ui.dp(this, 12));
         list.setFastScrollEnabled(true);
-        adapter = new ArrayAdapter<Project>(this, 0, projects) {
+        adapter = new BaseAdapter() {
+            @Override public int getCount() { return rows.size(); }
+            @Override public Object getItem(int p) { return rows.get(p); }
+            @Override public long getItemId(int p) { return p; }
+            @Override public int getViewTypeCount() { return 3; }
+            @Override public int getItemViewType(int p) {
+                Object row = rows.get(p);
+                if (row instanceof String) return TYPE_HEADER;
+                if (row instanceof Section) return TYPE_SECTION;
+                return TYPE_PROJECT;
+            }
+
             @Override
             public View getView(int position, View convertView,
                                 ViewGroup parent) {
+                Object row = rows.get(position);
+                int type = getItemViewType(position);
+                if (type == TYPE_HEADER) {
+                    TextView header;
+                    if (convertView instanceof TextView) {
+                        header = (TextView) convertView;
+                    } else {
+                        header = new TextView(ProjectsActivity.this);
+                        header.setTextColor(Ui.MUTED);
+                        header.setTextSize(12);
+                        header.setTypeface(
+                                android.graphics.Typeface.DEFAULT_BOLD);
+                        int hp = Ui.dp(ProjectsActivity.this, 16);
+                        header.setPadding(hp, Ui.dp(ProjectsActivity.this, 8),
+                                hp, Ui.dp(ProjectsActivity.this, 4));
+                        header.setLayoutParams(new AbsListView.LayoutParams(
+                                AbsListView.LayoutParams.MATCH_PARENT,
+                                AbsListView.LayoutParams.WRAP_CONTENT));
+                    }
+                    header.setText(((String) row).toUpperCase());
+                    return header;
+                }
+                if (type == TYPE_SECTION) {
+                    return sectionResultView((Section) row, convertView,
+                            searchBox.getText().toString().trim());
+                }
+                // TYPE_PROJECT: the existing card UI below.
+                final Project pr = (Project) row;
                 LinearLayout card;
                 TextView titleView;
                 TextView metaView;
@@ -153,7 +253,6 @@ public class ProjectsActivity extends Activity {
                     selectBtn = (ImageButton) t[2];
                     overflowBtn = (ImageButton) t[3];
                 }
-                final Project pr = getItem(position);
                 titleView.setText(pr.name);
                 int secs = db.sectionsFor(pr.id).size();
                 int words = db.projectWordCount(pr.id);
@@ -189,10 +288,10 @@ public class ProjectsActivity extends Activity {
             }
         };
         list.setAdapter(adapter);
-        TextView empty = new TextView(this);
-        empty.setText("No projects yet. Tap + to start one.");
-        empty.setTextColor(Ui.MUTED);
-        empty.setGravity(Gravity.CENTER);
+        emptyView = new TextView(this);
+        emptyView.setText("No projects yet. Tap + to start one.");
+        emptyView.setTextColor(Ui.MUTED);
+        emptyView.setGravity(Gravity.CENTER);
         // Weighted slot: when the list empties, the ListView goes GONE
         // for its empty view — without the slot the tab row would ride
         // up the screen.
@@ -205,12 +304,12 @@ public class ProjectsActivity extends Activity {
                 new android.widget.FrameLayout.LayoutParams(
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT));
-        listSlot.addView(empty,
+        listSlot.addView(emptyView,
                 new android.widget.FrameLayout.LayoutParams(
                         android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
                         android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
                         android.view.Gravity.CENTER));
-        list.setEmptyView(empty);
+        list.setEmptyView(emptyView);
         // Insertion line for drag-to-reorder.
         insertLine = new View(this);
         insertLine.setBackgroundColor(Ui.ACCENT);
@@ -261,7 +360,17 @@ public class ProjectsActivity extends Activity {
             @Override
             public void onItemClick(AdapterView<?> parent, View view,
                                     int position, long id) {
-                Project p = projects.get(position);
+                Object row = rows.get(position);
+                if (row instanceof Section) {
+                    // Search result: open the piece in its editor.
+                    Intent i = new Intent(ProjectsActivity.this,
+                            SectionActivity.class);
+                    i.putExtra("section_id", ((Section) row).id);
+                    startActivity(i);
+                    return;
+                }
+                if (!(row instanceof Project)) return;
+                Project p = (Project) row;
                 Intent i = new Intent(ProjectsActivity.this,
                         ProjectActivity.class);
                 i.putExtra("project_id", p.id);
@@ -275,9 +384,13 @@ public class ProjectsActivity extends Activity {
                     public boolean onItemLongClick(AdapterView<?> parent,
                                                    View view, int position,
                                                    long id) {
+                        // No dragging while searching.
+                        if (isSearching()) return false;
+                        Object row = rows.get(position);
+                        if (!(row instanceof Project)) return false;
                         // Press-and-hold lifts the card for drag (the
                         // menu moved to the per-card overflow button).
-                        startProjectDrag(projects.get(position), view);
+                        startProjectDrag((Project) row, view);
                         return true;
                     }
                 });
@@ -343,6 +456,71 @@ public class ProjectsActivity extends Activity {
         setContentView(frame);
     }
 
+    /** A search result row: piece title + snippet showing the match in
+     * context. Tapping opens the piece in its editor. */
+    private View sectionResultView(Section s, View convertView, String query) {
+        LinearLayout card;
+        TextView titleView;
+        TextView snippetView;
+        if (convertView instanceof LinearLayout
+                && convertView.getTag() instanceof Object[]) {
+            card = (LinearLayout) convertView;
+            Object[] t = (Object[]) card.getTag();
+            titleView = (TextView) t[0];
+            snippetView = (TextView) t[1];
+        } else {
+            card = new LinearLayout(this);
+            card.setOrientation(LinearLayout.VERTICAL);
+            int p = Ui.dp(this, 16);
+            card.setPadding(p, p, p, p);
+            card.setBackground(Ui.card(this, 16));
+            titleView = new TextView(this);
+            titleView.setTextColor(Ui.CARD_TEXT);
+            titleView.setTextSize(16);
+            titleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            titleView.setSingleLine(true);
+            titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            snippetView = new TextView(this);
+            snippetView.setTextColor(Ui.CARD_MUTED);
+            snippetView.setTextSize(14);
+            snippetView.setMaxLines(2);
+            snippetView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            card.addView(titleView);
+            card.addView(snippetView);
+            card.setTag(new Object[]{titleView, snippetView});
+            card.setLayoutParams(new AbsListView.LayoutParams(
+                    AbsListView.LayoutParams.MATCH_PARENT,
+                    AbsListView.LayoutParams.WRAP_CONTENT));
+        }
+        titleView.setText(s.name);
+        snippetView.setText(snippetAround(s.body, query));
+        card.setContentDescription(s.name + ", piece. Tap to open.");
+        return card;
+    }
+
+    /** Extract ~120 chars of body text centered on the query match,
+     * so the hit is visible in context. Falls back to the start of
+     * the body when the match is in the title. */
+    private String snippetAround(String body, String query) {
+        if (body == null) return "";
+        String t = body.replaceAll("\\s+", " ").trim();
+        if (t.isEmpty()) return "";
+        String ql = query == null ? "" : query.trim().toLowerCase();
+        if (ql.isEmpty()) {
+            return t.length() > 120 ? t.substring(0, 120) + "\u2026" : t;
+        }
+        int at = t.toLowerCase().indexOf(ql);
+        if (at < 0) {
+            return t.length() > 120 ? t.substring(0, 120) + "\u2026" : t;
+        }
+        int start = Math.max(0, at - 40);
+        int end = Math.min(t.length(), at + ql.length() + 60);
+        String snip = t.substring(start, end);
+        if (start > 0) snip = "\u2026" + snip;
+        if (end < t.length()) snip = snip + "\u2026";
+        return snip;
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -359,8 +537,50 @@ public class ProjectsActivity extends Activity {
     private void refresh() {
         projects.clear();
         projects.addAll(db.allProjects());
+        rows.clear();
+        String q = searchBox != null
+                ? searchBox.getText().toString().trim() : "";
+        boolean searching = !q.isEmpty();
+        if (!searching) {
+            rows.addAll(projects);
+        } else {
+            // Search mode: matching pieces grouped under project
+            // name headers. Projects stay in their existing order.
+            java.util.Map<Long, String> nameById =
+                    new java.util.HashMap<Long, String>();
+            java.util.Map<Long, List<Section>> hitsByProject =
+                    new java.util.HashMap<Long, List<Section>>();
+            for (Project p : projects) {
+                nameById.put(p.id, p.name);
+            }
+            for (Section s : db.searchSections(q)) {
+                List<Section> bucket = hitsByProject.get(s.projectId);
+                if (bucket == null) {
+                    bucket = new ArrayList<Section>();
+                    hitsByProject.put(s.projectId, bucket);
+                }
+                bucket.add(s);
+            }
+            for (Project p : projects) {
+                List<Section> hits = hitsByProject.get(p.id);
+                if (hits == null || hits.isEmpty()) continue;
+                rows.add(p.name);
+                rows.addAll(hits);
+            }
+        }
         adapter.notifyDataSetChanged();
+        clearSearchBtn.setVisibility(
+                searching ? View.VISIBLE : View.GONE);
+        emptyView.setText(searching ? "No pieces match."
+                : "No projects yet. Tap + to start one.");
         if (selectionBar != null) selectionBar.update(selected.size());
+    }
+
+    /** True while the search box has a query. Drag, selection, and
+     * project cards are all suspended in search mode. */
+    private boolean isSearching() {
+        return searchBox != null
+                && !searchBox.getText().toString().trim().isEmpty();
     }
 
     /** Bulk delete of the checked projects. Delete means delete;

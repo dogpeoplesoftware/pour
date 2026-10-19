@@ -17,6 +17,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.DragEvent;
 import android.view.Gravity;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +26,7 @@ import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -68,6 +71,9 @@ public class ProjectActivity extends Activity {
     private TextView emptyView;
     private ListView list;
     private FrameLayout listWrap;
+    /** In-project search: filters pieces by title/body as you type. */
+    private EditText searchBox;
+    private Button clearSearchBtn;
     /** The insertion line shown while dragging: a 3dp accent rule. */
     private View insertLine;
     /** Outline shown around a folder header when a dragged section
@@ -175,6 +181,53 @@ public class ProjectActivity extends Activity {
         statsParams.topMargin = Ui.dp(this, 4);
         statsView.setLayoutParams(statsParams);
         root.addView(statsView);
+
+        // In-project search: same pattern as the Bucket. Filters the
+        // piece list by title/body as you type; clearing restores all.
+        searchBox = new EditText(this);
+        searchBox.setHint("Search this project\u2026");
+        searchBox.setSingleLine(true);
+        searchBox.setTextColor(Ui.CARD_TEXT);
+        searchBox.setHintTextColor(Ui.CARD_MUTED);
+        searchBox.setBackground(Ui.card(this, 16));
+        int ssp = Ui.dp(this, 16);
+        searchBox.setPadding(ssp, Ui.dp(this, 12), ssp, Ui.dp(this, 12));
+
+        clearSearchBtn = new Button(this);
+        clearSearchBtn.setText("\u2715");
+        clearSearchBtn.setTextColor(Ui.MUTED);
+        clearSearchBtn.setBackgroundColor(0x00000000);
+        clearSearchBtn.setMinWidth(0);
+        clearSearchBtn.setMinimumWidth(0);
+        clearSearchBtn.setMinHeight(Ui.dp(this, 48));
+        clearSearchBtn.setMinimumHeight(Ui.dp(this, 48));
+        clearSearchBtn.setContentDescription("Clear search");
+        clearSearchBtn.setVisibility(View.GONE);
+        clearSearchBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                searchBox.setText("");
+            }
+        });
+
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        searchRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        searchRow.addView(searchBox, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        searchRow.addView(clearSearchBtn);
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        searchParams.topMargin = Ui.dp(this, 12);
+        root.addView(searchRow, searchParams);
+
+        searchBox.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a,
+                    int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a,
+                    int b, int c) { }
+            @Override public void afterTextChanged(Editable s) { refresh(); }
+        });
 
         listWrap = new FrameLayout(this);
         LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(
@@ -298,6 +351,12 @@ public class ProjectActivity extends Activity {
                     public boolean onItemLongClick(AdapterView<?> parent,
                                                    View view, int position,
                                                    long id) {
+                        // No dragging while searching: the list is a
+                        // flat filtered view, not the real order.
+                        if (searchBox != null && !searchBox.getText()
+                                .toString().trim().isEmpty()) {
+                            return false;
+                        }
                         // Press-and-hold lifts the row for drag (menus
                         // moved to the per-row overflow button).
                         Object row = rows.get(position);
@@ -874,6 +933,11 @@ public class ProjectActivity extends Activity {
         titleView.setText(p.name);
         buildRows();
         adapter.notifyDataSetChanged();
+        String q = searchBox != null
+                ? searchBox.getText().toString().trim() : "";
+        boolean searching = !q.isEmpty();
+        clearSearchBtn.setVisibility(
+                searching ? View.VISIBLE : View.GONE);
         int words = db.projectWordCount(projectId);
         // Reuse the maps already populated by buildRows() — no extra queries.
         int sectionCount = sectionById.size();
@@ -889,7 +953,8 @@ public class ProjectActivity extends Activity {
             selectionBar.update(selected.size() + selectedFolders.size());
         }
         emptyView.setText(sectionCount == 0
-                ? "This project is empty.\nAdd a piece to start writing."
+                ? (searching ? "No pieces match."
+                        : "This project is empty.\nAdd a piece to start writing.")
                 : "");
     }
 
@@ -898,6 +963,39 @@ public class ProjectActivity extends Activity {
         sectionById.clear();
         folderById.clear();
         sectionsByFolder.clear();
+        String q = searchBox != null
+                ? searchBox.getText().toString().trim() : "";
+        if (!q.isEmpty()) {
+            // Search mode: flat list of matching pieces. The folder
+            // hierarchy is flattened — search cuts across organization.
+            // A piece matches on its title/body, or when its folder's
+            // name matches.
+            String ql = q.toLowerCase();
+            java.util.Set<Long> matchingFolderIds =
+                    new java.util.HashSet<Long>();
+            for (Folder f : db.foldersFor(projectId)) {
+                if (f.name != null
+                        && f.name.toLowerCase().contains(ql)) {
+                    matchingFolderIds.add(f.id);
+                }
+            }
+            java.util.Set<Long> seen = new java.util.HashSet<Long>();
+            for (Section s : db.searchSectionsInProject(projectId, q)) {
+                rows.add(s);
+                sectionById.put(s.id, s);
+                seen.add(s.id);
+            }
+            if (!matchingFolderIds.isEmpty()) {
+                for (Section s : db.sectionHeadersFor(projectId)) {
+                    if (!seen.contains(s.id)
+                            && matchingFolderIds.contains(s.folderId)) {
+                        rows.add(s);
+                        sectionById.put(s.id, s);
+                    }
+                }
+            }
+            return;
+        }
         // Two queries total: all folders + all section headers. Build the
         // hierarchy in memory instead of N+1 individual lookups.
         List<Folder> folders = db.foldersFor(projectId);
