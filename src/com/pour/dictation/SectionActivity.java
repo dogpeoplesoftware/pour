@@ -429,16 +429,13 @@ public class SectionActivity extends Activity {
         }
     }
 
+    /** Export this piece as a file: the same format sheet and
+     * destination sheet a project uses. The simple Copy button is
+     * unchanged. */
     private void onShare() {
-        String t = docText();
-        if (t.isEmpty()) {
-            Toast.makeText(this, "Nothing to share.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        Intent send = new Intent(Intent.ACTION_SEND);
-        send.setType("text/plain");
-        send.putExtra(Intent.EXTRA_TEXT, t);
-        startActivity(Intent.createChooser(send, "Share piece"));
+        PieceExport.exportPiece(this,
+                titleBox.getText().toString(),
+                bodyBox.getText().toString());
     }
 
     private void onDeleteConfirm() {

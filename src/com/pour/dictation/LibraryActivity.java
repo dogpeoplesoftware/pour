@@ -6,6 +6,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -535,6 +537,12 @@ public class LibraryActivity extends Activity {
         java.util.List<SelectionBar.Action> barActions =
                 new java.util.ArrayList<SelectionBar.Action>();
         barActions.add(new SelectionBar.Action() {
+            @Override public String label() { return "Copy"; }
+            @Override public boolean visible() { return true; }
+            @Override public boolean destructive() { return false; }
+            @Override public void run() { onCopyBucket(); }
+        });
+        barActions.add(new SelectionBar.Action() {
             @Override public String label() { return "Share"; }
             @Override public boolean visible() { return true; }
             @Override public boolean destructive() { return false; }
@@ -818,13 +826,7 @@ public class LibraryActivity extends Activity {
      * (save to Downloads or share to another app). Nothing checked means
      * nothing to export — the toast says so instead of guessing. */
     private void onExportBucket() {
-        final List<Note> toExport = new ArrayList<Note>();
-        for (Object o : notes) {
-            if (o instanceof Note) {
-                Note n = (Note) o;
-                if (selected.contains(n.id)) toExport.add(n);
-            }
-        }
+        final List<Note> toExport = checkedNotes();
         if (toExport.isEmpty()) {
             if (selected.isEmpty()) {
                 android.widget.Toast.makeText(this,
@@ -868,29 +870,96 @@ public class LibraryActivity extends Activity {
     /** The checked Bucket notes as a single text block: each note's
      * title (when it has one) over its transcript, notes separated by
      * a blank line. */
-    private static String bucketExportBody(List<Note> notes) {
-        StringBuilder sb = new StringBuilder();
-        for (Note n : notes) {
-            String title = n.title == null ? "" : n.title.trim();
-            String body = n.transcript == null ? "" : n.transcript.trim();
-            StringBuilder part = new StringBuilder();
-            if (!title.isEmpty()) part.append(title).append("\n");
-            part.append(body);
-            String ps = part.toString().trim();
-            if (ps.isEmpty()) continue;
-            if (sb.length() > 0) sb.append("\n\n");
-            sb.append(ps);
+    /** The checked Bucket notes, in list order. */
+    private List<Note> checkedNotes() {
+        List<Note> out = new ArrayList<Note>();
+        for (Object o : notes) {
+            if (o instanceof Note) {
+                Note n = (Note) o;
+                if (selected.contains(n.id)) out.add(n);
+            }
         }
-        return sb.toString();
+        return out;
+    }
+
+    /** The checked Bucket notes as exporter entries, one entry per
+     * piece with the piece title as its heading, the same model a
+     * project hands the exporter. Empty pieces are skipped, as the
+     * exporter's project collection skips empty sections. */
+    private static List<ProjectExporter.Entry> bucketEntries(
+            List<Note> notes) {
+        List<ProjectExporter.Entry> entries =
+                new ArrayList<ProjectExporter.Entry>();
+        for (Note n : notes) {
+            String body = n.transcript == null ? "" : n.transcript;
+            if (body.trim().isEmpty()) continue;
+            entries.add(new ProjectExporter.Entry(
+                    null, n.title == null ? "" : n.title, body));
+        }
+        return entries;
+    }
+
+    /** Copy the checked Bucket pieces: the same "Copy as" format
+     * sheet the project page offers (binary formats excluded, as
+     * there), rendering the checked pieces under the Bucket name. */
+    private void onCopyBucket() {
+        final List<Note> toCopy = checkedNotes();
+        if (toCopy.isEmpty()) {
+            Toast.makeText(this, "Check off the pieces to include.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        final android.app.Dialog[] sheet = new android.app.Dialog[1];
+        for (final ProjectExporter.Format f
+                : ProjectExporter.Format.values()) {
+            if (f.isBinary()) continue;
+            content.addView(Sheet.row(this,
+                    f.label + " (." + f.ext + ")",
+                    f.description,
+                    new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            getSharedPreferences("pour_pro", MODE_PRIVATE)
+                                    .edit()
+                                    .putString("export_format", f.name())
+                                    .apply();
+                            if (sheet[0] != null) sheet[0].dismiss();
+                            doCopyBucket(f, toCopy);
+                        }
+                    }));
+        }
+        sheet[0] = Sheet.show(this, "Copy as", content);
+    }
+
+    private void doCopyBucket(ProjectExporter.Format f, List<Note> notes) {
+        String t = ProjectExporter.render(f, "Bucket",
+                bucketEntries(notes));
+        if (t.isEmpty()) {
+            Toast.makeText(this, "Nothing to copy.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ClipboardManager cm =
+                (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        try {
+            cm.setPrimaryClip(ClipData.newPlainText("Pour pieces", t));
+        } catch (Exception e) {
+            Toast.makeText(this, "Couldn't copy. Try again.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (android.os.Build.VERSION.SDK_INT < 33) {
+            Toast.makeText(this, "Pieces copied. "
+                            + NotesDb.countWords(t) + " words.",
+                    Toast.LENGTH_SHORT).show();
+        }
     }
 
     /** One bucket format picked: render once, then pick the destination. */
     private void onBucketFormatPicked(final ProjectExporter.Format f,
                                       List<Note> notes) {
-        List<ProjectExporter.Entry> entries =
-                new ArrayList<ProjectExporter.Entry>();
-        entries.add(new ProjectExporter.Entry(null, "",
-                bucketExportBody(notes)));
+        List<ProjectExporter.Entry> entries = bucketEntries(notes);
         final boolean isPdf = f == ProjectExporter.Format.PDF;
         final byte[] pdfBytes;
         final String t;
