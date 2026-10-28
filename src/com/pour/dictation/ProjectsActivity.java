@@ -706,11 +706,13 @@ public class ProjectsActivity extends Activity {
             if (entries.isEmpty()) continue;
             String name = full.name == null ? "" : full.name;
             if (isPdf) {
-                byte[] pdf = ProjectExporter.renderBytes(f, name, entries);
+                byte[] pdf = ProjectExporter.renderBytes(f, name, entries,
+                        ProjectExporter.datesEnabled(this));
                 if (pdf == null || pdf.length == 0) continue;
                 pdfs.add(pdf);
             } else {
-                texts.add(ProjectExporter.render(f, name, entries));
+                texts.add(ProjectExporter.render(f, name, entries,
+                        ProjectExporter.datesEnabled(this)));
             }
             bases.add(ProjectExporter.sanitizeFileName(full.name));
         }

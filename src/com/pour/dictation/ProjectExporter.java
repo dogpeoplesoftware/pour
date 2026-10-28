@@ -63,11 +63,43 @@ public final class ProjectExporter {
         public final String folderName;
         public final String sectionName;
         public final String body;
+        /** Piece timestamps (millis); 0 = the piece predates stamps. */
+        public final long created;
+        public final long modified;
         public Entry(String folderName, String sectionName, String body) {
+            this(folderName, sectionName, body, 0, 0);
+        }
+        public Entry(String folderName, String sectionName, String body,
+                     long created, long modified) {
             this.folderName = folderName;
             this.sectionName = sectionName == null ? "" : sectionName;
             this.body = body == null ? "" : body;
+            this.created = created;
+            this.modified = modified;
         }
+    }
+
+    /** The Settings choice: do exports carry piece dates? Off by
+     * default; while off, output is exactly what it has always been. */
+    public static boolean datesEnabled(android.content.Context ctx) {
+        try {
+            return Ui.prefs(ctx).getBoolean("export_dates", false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** The quiet date line for one piece, or null when the piece has
+     * no stamp to show. Same wording the app itself uses. */
+    private static String datesText(Entry e) {
+        if (e.created <= 0) return null;
+        java.text.DateFormat df = DateFormat.getDateTimeInstance(
+                DateFormat.SHORT, DateFormat.SHORT);
+        String t = "Created " + df.format(new Date(e.created));
+        if (e.modified > e.created) {
+            t += " \u00B7 Edited " + df.format(new Date(e.modified));
+        }
+        return t;
     }
 
     /** Collect the export model: checked, non-empty sections in
@@ -83,14 +115,14 @@ public final class ProjectExporter {
                 for (Section s : db.sectionsInFolder(t.id)) {
                     if (selected.contains(s.id)
                             && !s.body.trim().isEmpty()) {
-                        out.add(new Entry(f.name, s.name, s.body));
+                        out.add(new Entry(f.name, s.name, s.body, s.created, s.modified));
                     }
                 }
             } else {
                 Section s = db.getSection(t.id);
                 if (s == null) continue;
                 if (selected.contains(s.id) && !s.body.trim().isEmpty()) {
-                    out.add(new Entry(null, s.name, s.body));
+                    out.add(new Entry(null, s.name, s.body, s.created, s.modified));
                 }
             }
         }
@@ -108,16 +140,22 @@ public final class ProjectExporter {
 
     public static String render(Format f, String projectName,
                                List<Entry> entries) {
+        return render(f, projectName, entries, false);
+    }
+
+    public static String render(Format f, String projectName,
+                               List<Entry> entries, boolean includeDates) {
         switch (f) {
-            case MD: return markdown(projectName, entries);
-            case FOUNTAIN: return fountain(projectName, entries);
-            case HTML: return html(projectName, entries);
+            case MD: return markdown(projectName, entries, includeDates);
+            case FOUNTAIN: return fountain(projectName, entries,
+                    includeDates);
+            case HTML: return html(projectName, entries, includeDates);
             case PDF:
                 // Binary format — callers must use renderBytes().
                 throw new IllegalArgumentException(
                         "PDF is binary; use renderBytes()");
             case TXT:
-            default: return plainText(projectName, entries);
+            default: return plainText(projectName, entries, includeDates);
         }
     }
 
@@ -125,8 +163,14 @@ public final class ProjectExporter {
      * binary via android.graphics.pdf.PdfDocument. */
     public static byte[] renderBytes(Format f, String projectName,
                                      List<Entry> entries) {
-        if (f == Format.PDF) return pdf(projectName, entries);
-        String s = render(f, projectName, entries);
+        return renderBytes(f, projectName, entries, false);
+    }
+
+    public static byte[] renderBytes(Format f, String projectName,
+                                     List<Entry> entries,
+                                     boolean includeDates) {
+        if (f == Format.PDF) return pdf(projectName, entries, includeDates);
+        String s = render(f, projectName, entries, includeDates);
         try {
             return s.getBytes("UTF-8");
         } catch (java.io.UnsupportedEncodingException e) {
@@ -136,7 +180,8 @@ public final class ProjectExporter {
 
     // ---------------- plain text (owner's approved layout, verbatim) ---
 
-    private static String plainText(String projectName, List<Entry> entries) {
+    private static String plainText(String projectName, List<Entry> entries,
+                                    boolean includeDates) {
         StringBuilder sb = new StringBuilder(
                 projectName == null ? "" : projectName);
         String lastFolder = "";
@@ -154,6 +199,10 @@ public final class ProjectExporter {
                 sb.append(e.sectionName.toUpperCase(Locale.US))
                         .append("\n\n");
             }
+            String dates = includeDates ? datesText(e) : null;
+            if (dates != null && !e.body.trim().isEmpty()) {
+                sb.append(dates).append("\n\n");
+            }
             sb.append(e.body.trim());
         }
         return sb.toString().trim();
@@ -161,7 +210,8 @@ public final class ProjectExporter {
 
     // ---------------- markdown -------------------------------------------
 
-    private static String markdown(String projectName, List<Entry> entries) {
+    private static String markdown(String projectName, List<Entry> entries,
+                                   boolean includeDates) {
         boolean folders = hasFolders(entries);
         StringBuilder sb = new StringBuilder();
         sb.append("# ").append(mdInline(projectName)).append("\n");
@@ -181,6 +231,10 @@ public final class ProjectExporter {
                         .append(mdInline(e.sectionName)).append("\n");
             }
             String mbody = e.body.trim();
+            String dates = includeDates ? datesText(e) : null;
+            if (dates != null && !mbody.isEmpty()) {
+                sb.append("\n").append(dates).append("\n");
+            }
             if (!mbody.isEmpty()) {
                 sb.append("\n").append(mdBody(mbody)).append("\n");
             }
@@ -224,7 +278,8 @@ public final class ProjectExporter {
     // line after it would parse as Character + Dialogue, so such lines
     // are forced to action with `!` (stripped in formatted output).
 
-    private static String fountain(String projectName, List<Entry> entries) {
+    private static String fountain(String projectName, List<Entry> entries,
+                                   boolean includeDates) {
         boolean folders = hasFolders(entries);
         StringBuilder sb = new StringBuilder();
         sb.append("Title: ").append(fInline(projectName)).append("\n\n");
@@ -248,6 +303,12 @@ public final class ProjectExporter {
                         .append(fInline(e.sectionName)).append("\n\n");
             }
             String fbody = e.body.trim();
+            String dates = includeDates ? datesText(e) : null;
+            if (dates != null && !fbody.isEmpty()) {
+                // A bracketed note: writing tools treat it as private
+                // and never print it.
+                sb.append("[[").append(dates).append("]]\n\n");
+            }
             if (!fbody.isEmpty()) {
                 sb.append(fBody(fbody)).append("\n\n");
             }
@@ -308,8 +369,18 @@ public final class ProjectExporter {
 
     // ---------------- html -------------------------------------------------
 
-    private static String html(String projectName, List<Entry> entries) {
+    private static String html(String projectName, List<Entry> entries,
+                               boolean includeDates) {
         boolean folders = hasFolders(entries);
+        boolean anyDates = false;
+        if (includeDates) {
+            for (Entry e : entries) {
+                if (datesText(e) != null && !e.body.trim().isEmpty()) {
+                    anyDates = true;
+                    break;
+                }
+            }
+        }
         StringBuilder sb = new StringBuilder();
         sb.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
                 + "<meta charset=\"utf-8\">\n"
@@ -324,6 +395,10 @@ public final class ProjectExporter {
                 + "border-bottom:1px solid #ddd;padding-bottom:.2em}\n"
                 + "h3{font-size:1.15em;margin-bottom:.2em}\n"
                 + "p{margin:.8em 0}\n"
+                + (anyDates
+                    ? ".dates{color:#666;font-size:.85em;"
+                        + "margin:.2em 0 .8em}\n"
+                    : "")
                 + "</style>\n</head>\n<body>\n");
         sb.append("<h1>").append(hEsc(projectName)).append("</h1>\n");
         String lastFolder = "";
@@ -343,6 +418,11 @@ public final class ProjectExporter {
                         .append(folders ? "</h3>\n" : "</h2>\n");
             }
             String hbody = e.body.trim();
+            String dates = includeDates ? datesText(e) : null;
+            if (dates != null && !hbody.isEmpty()) {
+                sb.append("<p class=\"dates\">").append(hEsc(dates))
+                        .append("</p>\n");
+            }
             if (!hbody.isEmpty()) {
                 String[] paras = hbody.split("\\n\\s*\\n");
                 for (String par : paras) {
@@ -384,13 +464,15 @@ public final class ProjectExporter {
     private static final int PDF_PAGE_H = 842; // A4 height, points
     private static final int PDF_MARGIN = 56;
 
-    private static byte[] pdf(String projectName, List<Entry> entries) {
+    private static byte[] pdf(String projectName, List<Entry> entries,
+                              boolean includeDates) {
         android.graphics.pdf.PdfDocument doc =
                 new android.graphics.pdf.PdfDocument();
         PdfWriter w = new PdfWriter(doc);
         android.graphics.Paint titlePaint = pdfPaint(18, true);
         android.graphics.Paint headPaint = pdfPaint(14, true);
         android.graphics.Paint bodyPaint = pdfPaint(12, false);
+        android.graphics.Paint datesPaint = pdfPaint(10, false);
 
         String title = projectName == null ? "" : projectName.trim();
         if (!title.isEmpty()) {
@@ -409,6 +491,10 @@ public final class ProjectExporter {
             }
             if (!e.sectionName.isEmpty()) {
                 w.para(headPaint, e.sectionName.trim(), 4);
+            }
+            String dates = includeDates ? datesText(e) : null;
+            if (dates != null && !e.body.trim().isEmpty()) {
+                w.para(datesPaint, dates, 4);
             }
             String body = e.body.trim();
             if (!body.isEmpty()) {

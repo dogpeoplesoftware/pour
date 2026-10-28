@@ -894,7 +894,8 @@ public class LibraryActivity extends Activity {
             String body = n.transcript == null ? "" : n.transcript;
             if (body.trim().isEmpty()) continue;
             entries.add(new ProjectExporter.Entry(
-                    null, n.title == null ? "" : n.title, body));
+                    null, n.title == null ? "" : n.title, body,
+                    n.created, n.modified));
         }
         return entries;
     }
@@ -934,7 +935,8 @@ public class LibraryActivity extends Activity {
 
     private void doCopyBucket(ProjectExporter.Format f, List<Note> notes) {
         String t = ProjectExporter.render(f, "Bucket",
-                bucketEntries(notes));
+                bucketEntries(notes),
+                ProjectExporter.datesEnabled(this));
         if (t.isEmpty()) {
             Toast.makeText(this, "Nothing to copy.",
                     Toast.LENGTH_SHORT).show();
@@ -964,7 +966,8 @@ public class LibraryActivity extends Activity {
         final byte[] pdfBytes;
         final String t;
         if (isPdf) {
-            pdfBytes = ProjectExporter.renderBytes(f, "Bucket", entries);
+            pdfBytes = ProjectExporter.renderBytes(f, "Bucket", entries,
+                    ProjectExporter.datesEnabled(this));
             t = null;
             if (pdfBytes == null || pdfBytes.length == 0) {
                 android.widget.Toast.makeText(this, "Nothing to export.",
@@ -973,7 +976,8 @@ public class LibraryActivity extends Activity {
             }
         } else {
             pdfBytes = null;
-            t = ProjectExporter.render(f, "Bucket", entries);
+            t = ProjectExporter.render(f, "Bucket", entries,
+                    ProjectExporter.datesEnabled(this));
             if (t.isEmpty()) {
                 android.widget.Toast.makeText(this, "Nothing to export.",
                         android.widget.Toast.LENGTH_SHORT).show();

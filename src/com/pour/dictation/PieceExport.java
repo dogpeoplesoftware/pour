@@ -21,6 +21,13 @@ public final class PieceExport {
 
     public static void exportPiece(final Activity a, String title,
                                    String body) {
+        exportPiece(a, title, body, 0, 0);
+    }
+
+    public static void exportPiece(final Activity a, String title,
+                                   String body,
+                                   final long created,
+                                   final long modified) {
         final String text = body == null ? "" : body;
         if (text.trim().isEmpty()) {
             Toast.makeText(a, "Nothing to export.",
@@ -46,7 +53,7 @@ public final class PieceExport {
                                     .putString("export_format", f.name())
                                     .apply();
                             if (sheet[0] != null) sheet[0].dismiss();
-                            deliver(a, docTitle, text, f);
+                            deliver(a, docTitle, text, f, created, modified);
                         }
                     }));
         }
@@ -56,15 +63,19 @@ public final class PieceExport {
     /** One format picked: render once, then pick the destination. */
     private static void deliver(final Activity a, final String docTitle,
                                 String body,
-                                final ProjectExporter.Format f) {
+                                final ProjectExporter.Format f,
+                                long created, long modified) {
         List<ProjectExporter.Entry> entries =
                 new ArrayList<ProjectExporter.Entry>();
-        entries.add(new ProjectExporter.Entry(null, "", body));
+        entries.add(new ProjectExporter.Entry(null, "", body,
+                created, modified));
+        boolean includeDates = ProjectExporter.datesEnabled(a);
         final boolean isPdf = f == ProjectExporter.Format.PDF;
         final byte[] pdfBytes;
         final String text;
         if (isPdf) {
-            pdfBytes = ProjectExporter.renderBytes(f, docTitle, entries);
+            pdfBytes = ProjectExporter.renderBytes(f, docTitle, entries,
+                    includeDates);
             text = null;
             if (pdfBytes == null || pdfBytes.length == 0) {
                 Toast.makeText(a, "Nothing to export.",
@@ -73,7 +84,8 @@ public final class PieceExport {
             }
         } else {
             pdfBytes = null;
-            text = ProjectExporter.render(f, docTitle, entries);
+            text = ProjectExporter.render(f, docTitle, entries,
+                    includeDates);
             if (text.isEmpty()) {
                 Toast.makeText(a, "Nothing to export.",
                         Toast.LENGTH_SHORT).show();

@@ -17,6 +17,10 @@ public class Section {
      * text blocks now — folders are the collapsible level). The DB
      * column and backup round-trip stay so old data is preserved. */
     public int collapsed;
+    /** Creation time (millis); 0 = predates piece timestamps. */
+    public long created;
+    /** Last body edit (millis); 0 = never edited since creation. */
+    public long modified;
     /** Containing folder id, or -1 when the section sits loose at the
      * top level. Folders are opt-in: -1 is the default. */
     public long folderId = -1;

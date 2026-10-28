@@ -35,6 +35,8 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.DateFormat;
+import java.util.Date;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -594,7 +596,13 @@ public class ProjectActivity extends Activity {
         h.titleView.setTextSize(16);
         h.snippetView.setTextSize(14);
         int words = s.words;
-        h.metaView.setText(words + (words == 1 ? " word" : " words"));
+        String rowMeta = words + (words == 1 ? " word" : " words");
+        if (s.created > 0) {
+            rowMeta = DateFormat.getDateTimeInstance(
+                    DateFormat.SHORT, DateFormat.SHORT)
+                    .format(new Date(s.created)) + " \u00B7 " + rowMeta;
+        }
+        h.metaView.setText(rowMeta);
         boolean checked = selected.contains(s.id);
         h.selectBtn.setImageResource(checked ? R.drawable.ic_box_checked
                 : R.drawable.ic_box);
@@ -2358,7 +2366,8 @@ public class ProjectActivity extends Activity {
         final byte[] pdfBytes;
         final String text;
         if (isPdf) {
-            pdfBytes = ProjectExporter.renderBytes(f, name, entries);
+            pdfBytes = ProjectExporter.renderBytes(f, name, entries,
+                    ProjectExporter.datesEnabled(this));
             text = null;
             if (pdfBytes == null || pdfBytes.length == 0) {
                 Toast.makeText(this, "Nothing to export.",
@@ -2367,7 +2376,8 @@ public class ProjectActivity extends Activity {
             }
         } else {
             pdfBytes = null;
-            text = ProjectExporter.render(f, name, entries);
+            text = ProjectExporter.render(f, name, entries,
+                    ProjectExporter.datesEnabled(this));
             if (text.isEmpty()) {
                 Toast.makeText(this, "Nothing to export.",
                         Toast.LENGTH_SHORT).show();
@@ -2416,7 +2426,8 @@ public class ProjectActivity extends Activity {
         Project p = db.getProject(projectId);
         if (p == null) return;
         String t = ProjectExporter.render(f,
-                p.name == null ? "" : p.name, exportEntries());
+                p.name == null ? "" : p.name, exportEntries(),
+                ProjectExporter.datesEnabled(this));
         if (t.isEmpty()) {
             Toast.makeText(this, "Nothing to copy.",
                     Toast.LENGTH_SHORT).show();

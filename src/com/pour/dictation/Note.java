@@ -7,6 +7,8 @@ public class Note {
     public String transcript;
     public String tags;
     public long created;
+    /** Last body edit (millis); 0 = never edited since creation. */
+    public long modified;
     public String audioPath;
     public int words;
     /** Position inside its section (0 = first). Unused for Bin notes. */

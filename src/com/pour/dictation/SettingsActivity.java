@@ -104,8 +104,42 @@ public class SettingsActivity extends Activity {
         textSizeSubtitle = ((TextView[]) textSizeRow.getTag())[1];
         content.addView(textSizeRow);
 
+        // Built here, shown in the Pieces section below: toggleRow
+        // points awakePill at the last row built, so export-dates and
+        // recording-sounds rows are created before the awake row.
+        final LinearLayout exportDatesRow = toggleRow(
+                "Include dates in exports",
+                "Created and edited dates under each piece's title",
+                ProjectExporter.datesEnabled(this),
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) { }
+                });
+        exportDatesRow.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                boolean now = !ProjectExporter.datesEnabled(
+                        SettingsActivity.this);
+                Ui.prefs(SettingsActivity.this).edit()
+                        .putBoolean("export_dates", now).apply();
+                paintPill((TextView) exportDatesRow.getTag(), now);
+            }
+        });
+
         // Dictation: comfort while recording.
         content.addView(sectionHeader("Dictation"));
+        final LinearLayout cuesRow = toggleRow("Recording sounds",
+                "Beeps when recording starts and stops",
+                Tones.cuesEnabled(this),
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) { }
+                });
+        cuesRow.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                boolean now = !Tones.cuesEnabled(SettingsActivity.this);
+                Ui.prefs(SettingsActivity.this).edit()
+                        .putBoolean("record_cues", now).apply();
+                paintPill((TextView) cuesRow.getTag(), now);
+            }
+        });
         final LinearLayout awakeRow = toggleRow("Keep screen awake",
                 "Screen stays on while dictating",
                 Ui.keepAwake(this),
@@ -119,6 +153,7 @@ public class SettingsActivity extends Activity {
                     }
                 });
         content.addView(awakeRow);
+        content.addView(cuesRow);
 
         // Voice engine: on-device (offline, private) or the
         // phone's built-in dictation (may use the network).
@@ -142,6 +177,7 @@ public class SettingsActivity extends Activity {
                 });
         sortSubtitle = ((TextView[]) sortRow.getTag())[1];
         content.addView(sortRow);
+        content.addView(exportDatesRow);
 
         // Trash: soft-deleted pieces live here until the retention
         // period expires or the user empties it.

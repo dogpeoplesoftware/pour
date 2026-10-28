@@ -1,7 +1,9 @@
 package com.pour.dictation;
 
 import android.content.Context;
+import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
+import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.util.Log;
@@ -59,6 +61,15 @@ public class KrokoEngine implements Engine {
     private WaveformView waveformView;
     /** True after pause(): transcript intact, start() resumes. */
     private boolean paused = false;
+    /** Start/stop beeps (the same tones the phone-dictation engine uses). */
+    private final Tones tones;
+    /** Bluetooth routing state for the current capture, if any. */
+    private AudioDeviceInfo commDeviceSet;
+    private boolean scoStarted;
+    /** Audio focus: held while recording so other apps pause. */
+    private AudioManager audioManager;
+    private android.media.AudioFocusRequest focusRequest;
+    private AudioManager.OnAudioFocusChangeListener focusListener;
 
     /** Draft key matching DictationEngine: section appends use negative
      * keys to avoid colliding with note ids. */
@@ -69,6 +80,7 @@ public class KrokoEngine implements Engine {
     public KrokoEngine(Context ctx, DictationEngine.Host host) {
         this.app = ctx.getApplicationContext();
         this.host = host;
+        this.tones = new Tones(ctx);
         this.mainHandler = new android.os.Handler(
             android.os.Looper.getMainLooper());
     }
@@ -245,6 +257,11 @@ public class KrokoEngine implements Engine {
             host.onPermissionDenied();
             return false;
         }
+        if (!requestAudioFocus()) {
+            host.onStatus("Something else is using the microphone."
+                    + " Try again in a moment.");
+            return false;
+        }
 
         try {
             recognizer = getShared(app);
@@ -264,6 +281,7 @@ public class KrokoEngine implements Engine {
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
             if (bufSize <= 0) {
                 DebugLog.log(app, "Kroko: invalid buffer size");
+                abandonAudioFocus();
                 return false;
             }
             AudioRecord ar = new AudioRecord(MediaRecorder.AudioSource.MIC,
@@ -272,18 +290,30 @@ public class KrokoEngine implements Engine {
             if (ar.getState() != AudioRecord.STATE_INITIALIZED) {
                 DebugLog.log(app, "Kroko: AudioRecord not initialized");
                 try { ar.release(); } catch (Exception ignored) { }
+                abandonAudioFocus();
                 return false;
             }
             recorder = ar;
+            routeBluetoothMicIfPresent(ar);
             try {
                 recorder.startRecording();
             } catch (Exception e) {
                 DebugLog.log(app, "Kroko: startRecording failed: " + e.getMessage());
                 try { recorder.release(); } catch (Exception ignored) { }
                 recorder = null;
+                clearBluetoothRouting();
+                abandonAudioFocus();
                 return false;
             }
             DebugLog.log(app, "Kroko: AudioRecord started");
+            // A beat late on purpose: a tone fired in the same instant
+            // as a cold start gets swallowed. Guarded so a session
+            // stopped within the beat never beeps after the fact.
+            mainHandler.postDelayed(new Runnable() {
+                @Override public void run() {
+                    if (recording) tones.beep(true);
+                }
+            }, 300);
 
             recording = true;
             host.onRecordingChanged(true);
@@ -308,6 +338,7 @@ public class KrokoEngine implements Engine {
         } catch (Exception e) {
             Log.e(TAG, "Start failed", e);
             DebugLog.log(app, "Kroko start failed: " + e.getMessage());
+            abandonAudioFocus();
             host.onStatus("Kroko failed: " + e.getMessage());
             return false;
         }
@@ -406,8 +437,10 @@ public class KrokoEngine implements Engine {
 
     @Override
     public void stop() {
+        boolean wasActive = recording || paused;
         recording = false;
         paused = false;
+        if (wasActive) tones.beep(false);
         if (workerThread != null) {
             try { workerThread.join(500); } catch (InterruptedException ignored) {}
             workerThread = null;
@@ -417,6 +450,8 @@ public class KrokoEngine implements Engine {
             catch (Exception ignored) {}
             recorder = null;
         }
+        clearBluetoothRouting();
+        abandonAudioFocus();
         // Commit any pending partial.
         if (!lastPartial.isEmpty()) {
             if (transcript.length() > 0) transcript.append(" ");
@@ -476,6 +511,7 @@ public class KrokoEngine implements Engine {
         DebugLog.log(app, "KrokoEngine.pause() called");
         if (!recording || paused) return;
         paused = true;
+        tones.beep(false);
         // Stop audio but keep the transcript buffer intact.
         recording = false;
         if (workerThread != null) {
@@ -488,6 +524,8 @@ public class KrokoEngine implements Engine {
             catch (Exception ignored) {}
             recorder = null;
         }
+        clearBluetoothRouting();
+        abandonAudioFocus();
         if (stream != null) {
             try { stream.release(); } catch (Exception ignored) {}
             stream = null;
@@ -519,6 +557,175 @@ public class KrokoEngine implements Engine {
         // words survive, but don't change recording state here —
         // pause()/stop() own that.
         if (recording || paused) flushDraft();
+    }
+
+    /**
+     * Ask other apps to pause while we record. The built in engine
+     * never asked at all before 1.0.57, which is why music kept
+     * playing over dictation. Exclusive transient with speech
+     * attributes is the platform's recording shape: players get a
+     * temporary loss, and the system itself stays quiet. The result,
+     * and whether music is still audible a moment later, go to the
+     * debug log so a stubborn player can be told apart from a
+     * request that never landed.
+     */
+    private boolean requestAudioFocus() {
+        try {
+            if (audioManager == null) {
+                audioManager = (AudioManager) app.getSystemService(
+                        Context.AUDIO_SERVICE);
+            }
+            if (audioManager == null) return true;
+            if (focusListener == null) {
+                focusListener =
+                        new AudioManager.OnAudioFocusChangeListener() {
+                            @Override public void onAudioFocusChange(
+                                    int change) {
+                                if (change == AudioManager
+                                        .AUDIOFOCUS_LOSS) {
+                                    // Permanent loss (a call):
+                                    // freeze, keep the words.
+                                    pause();
+                                }
+                            }
+                        };
+            }
+            int res;
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                android.media.AudioAttributes attrs =
+                        new android.media.AudioAttributes.Builder()
+                                .setUsage(android.media.AudioAttributes
+                                        .USAGE_ASSISTANT)
+                                .setContentType(android.media
+                                        .AudioAttributes
+                                        .CONTENT_TYPE_SPEECH)
+                                .build();
+                android.media.AudioFocusRequest req =
+                        new android.media.AudioFocusRequest.Builder(
+                                AudioManager
+                                .AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                                .setAudioAttributes(attrs)
+                                .setOnAudioFocusChangeListener(
+                                        focusListener)
+                                .build();
+                focusRequest = req;
+                res = audioManager.requestAudioFocus(req);
+            } else {
+                res = audioManager.requestAudioFocus(focusListener,
+                        AudioManager.STREAM_MUSIC,
+                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
+            }
+            DebugLog.log(app, "Kroko focus request result=" + res);
+            if (res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                final AudioManager am = audioManager;
+                mainHandler.postDelayed(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            DebugLog.log(app, "Kroko music active"
+                                    + " after focus grant: "
+                                    + am.isMusicActive());
+                        } catch (Exception ignored) { }
+                    }
+                }, 600);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            // Never block dictation on a focus API failure, but do
+            // not let it fail silently either.
+            DebugLog.log(app, "Kroko focus request threw: "
+                    + e.getMessage());
+            return true;
+        }
+    }
+
+    private void abandonAudioFocus() {
+        try {
+            if (audioManager == null) return;
+            if (android.os.Build.VERSION.SDK_INT >= 26
+                    && focusRequest != null) {
+                audioManager.abandonAudioFocusRequest(focusRequest);
+                focusRequest = null;
+            } else if (focusListener != null) {
+                audioManager.abandonAudioFocus(focusListener);
+            }
+        } catch (Exception ignored) { }
+    }
+
+    /**
+     * If a Bluetooth headset with a microphone is connected, take the
+     * recorder's input from it, so dictation works with the phone in a
+     * pocket. Wired headsets route on their own and need nothing here.
+     * Best effort: any failure just leaves the phone microphone in
+     * charge. The chosen input is written to the debug log.
+     */
+    private void routeBluetoothMicIfPresent(AudioRecord ar) {
+        try {
+            AudioManager am = (AudioManager) app.getSystemService(
+                    Context.AUDIO_SERVICE);
+            if (am == null) return;
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                for (AudioDeviceInfo d
+                        : am.getAvailableCommunicationDevices()) {
+                    if (d.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+                        if (am.setCommunicationDevice(d)) {
+                            commDeviceSet = d;
+                            DebugLog.log(app, "Kroko input: Bluetooth"
+                                    + " headset microphone");
+                        }
+                        break;
+                    }
+                }
+            } else {
+                boolean scoPresent = false;
+                for (AudioDeviceInfo d : am.getDevices(
+                        AudioManager.GET_DEVICES_INPUTS)) {
+                    if (d.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+                        scoPresent = true;
+                        break;
+                    }
+                }
+                if (scoPresent) {
+                    am.startBluetoothSco();
+                    am.setBluetoothScoOn(true);
+                    scoStarted = true;
+                    DebugLog.log(app, "Kroko input: Bluetooth headset"
+                            + " microphone (SCO)");
+                }
+            }
+            if (commDeviceSet != null || scoStarted) {
+                for (AudioDeviceInfo d : am.getDevices(
+                        AudioManager.GET_DEVICES_INPUTS)) {
+                    if (d.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+                        ar.setPreferredDevice(d);
+                        break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            DebugLog.log(app, "Kroko input: Bluetooth routing failed: "
+                    + e.getMessage());
+        }
+    }
+
+    /** Undo routeBluetoothMicIfPresent(). Safe to call when unused. */
+    private void clearBluetoothRouting() {
+        try {
+            AudioManager am = (AudioManager) app.getSystemService(
+                    Context.AUDIO_SERVICE);
+            if (am == null) return;
+            if (commDeviceSet != null) {
+                if (android.os.Build.VERSION.SDK_INT >= 31) {
+                    am.clearCommunicationDevice();
+                }
+                commDeviceSet = null;
+            }
+            if (scoStarted) {
+                am.setBluetoothScoOn(false);
+                am.stopBluetoothSco();
+                scoStarted = false;
+            }
+        } catch (Exception ignored) { }
     }
 
     @Override public void destroy() {

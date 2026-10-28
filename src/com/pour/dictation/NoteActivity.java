@@ -260,9 +260,13 @@ public class NoteActivity extends Activity {
     }
 
     private void refreshMeta(int words) {
-        String meta = DateFormat.getDateTimeInstance(
-                DateFormat.SHORT, DateFormat.SHORT).format(new Date(note.created))
-                + " \u00B7 " + words
+        java.text.DateFormat df = DateFormat.getDateTimeInstance(
+                DateFormat.SHORT, DateFormat.SHORT);
+        String meta = df.format(new Date(note.created));
+        if (note.modified > note.created) {
+            meta += " \u00B7 Edited " + df.format(new Date(note.modified));
+        }
+        meta += " \u00B7 " + words
                 + (words == 1 ? " word" : " words");
         metaView.setText(meta);
     }
@@ -496,7 +500,8 @@ public class NoteActivity extends Activity {
     private void onShare() {
         PieceExport.exportPiece(this,
                 titleBox.getText().toString(),
-                transcriptBox.getText().toString());
+                transcriptBox.getText().toString(),
+                note.created, note.modified);
     }
 
     /** Silent save: the editor auto-saves, so no toast. */

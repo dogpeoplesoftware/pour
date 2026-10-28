@@ -17,6 +17,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.DateFormat;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -242,7 +244,21 @@ public class SectionActivity extends Activity {
 
     private void refreshMeta() {
         int words = NotesDb.countWords(bodyBox.getText().toString());
-        metaView.setText(words + (words == 1 ? " word" : " words"));
+        String wordsText = words + (words == 1 ? " word" : " words");
+        if (section.created > 0) {
+            DateFormat df = DateFormat.getDateTimeInstance(
+                    DateFormat.SHORT, DateFormat.SHORT);
+            String meta = df.format(new Date(section.created));
+            if (section.modified > section.created) {
+                meta += " \u00B7 Edited "
+                        + df.format(new Date(section.modified));
+            }
+            meta += " \u00B7 " + wordsText;
+            metaView.setText(meta);
+        } else {
+            // Pieces from before timestamps existed show no dates.
+            metaView.setText(wordsText);
+        }
     }
 
     /** Title for saving: the writer's own, or the body's opening words
@@ -260,7 +276,9 @@ public class SectionActivity extends Activity {
         titleBox.setText(section.name);
         db.renameSection(section.id, section.name);
         String body = bodyBox.getText().toString();
-        db.updateSectionBody(section.id, body);
+        if (db.updateSectionBody(section.id, body)) {
+            section.modified = System.currentTimeMillis();
+        }
         section.body = body;
         section.words = NotesDb.countWords(body);
         refreshMeta();
@@ -435,7 +453,8 @@ public class SectionActivity extends Activity {
     private void onShare() {
         PieceExport.exportPiece(this,
                 titleBox.getText().toString(),
-                bodyBox.getText().toString());
+                bodyBox.getText().toString(),
+                section.created, section.modified);
     }
 
     private void onDeleteConfirm() {

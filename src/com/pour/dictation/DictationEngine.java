@@ -325,10 +325,19 @@ public class DictationEngine implements Engine {
             }
             int res;
             if (android.os.Build.VERSION.SDK_INT >= 26) {
+                android.media.AudioAttributes attrs =
+                        new android.media.AudioAttributes.Builder()
+                                .setUsage(android.media.AudioAttributes
+                                        .USAGE_ASSISTANT)
+                                .setContentType(android.media
+                                        .AudioAttributes
+                                        .CONTENT_TYPE_SPEECH)
+                                .build();
                 android.media.AudioFocusRequest req =
                         new android.media.AudioFocusRequest.Builder(
                                 android.media.AudioManager
-                                        .AUDIOFOCUS_GAIN_TRANSIENT)
+                                .AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                                .setAudioAttributes(attrs)
                                 .setOnAudioFocusChangeListener(focusListener)
                                 .build();
                 focusRequest = req;
@@ -336,11 +345,32 @@ public class DictationEngine implements Engine {
             } else {
                 res = audioManager.requestAudioFocus(focusListener,
                         android.media.AudioManager.STREAM_MUSIC,
-                        android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+                        android.media.AudioManager
+                                .AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
+            }
+            DebugLog.log(app, "Dictation focus request result=" + res);
+            if (res == android.media.AudioManager
+                    .AUDIOFOCUS_REQUEST_GRANTED) {
+                final android.media.AudioManager am = audioManager;
+                new android.os.Handler(
+                        android.os.Looper.getMainLooper()).postDelayed(
+                        new Runnable() {
+                            @Override public void run() {
+                                try {
+                                    DebugLog.log(app, "Dictation music"
+                                            + " active after focus"
+                                            + " grant: "
+                                            + am.isMusicActive());
+                                } catch (Exception ignored) { }
+                            }
+                        }, 600);
             }
             return res == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
         } catch (Exception e) {
-            // Focus APIs are best-effort; never block dictation on them.
+            // Focus APIs are best-effort; never block dictation on
+            // them, but log the failure instead of hiding it.
+            DebugLog.log(app, "Dictation focus request threw: "
+                    + e.getMessage());
             return true;
         }
     }

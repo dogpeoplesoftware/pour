@@ -14,7 +14,7 @@ import java.util.List;
 public class NotesDb extends SQLiteOpenHelper {
 
     private static final String DB = "pour_pro.db";
-    private static final int VERSION = 12;
+    private static final int VERSION = 13;
 
     public NotesDb(Context ctx) {
         super(ctx, DB, null, VERSION);
@@ -24,7 +24,8 @@ public class NotesDb extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE notes (_id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + " title TEXT, transcript TEXT, tags TEXT,"
-                + " created INTEGER, audio_path TEXT, words INTEGER,"
+                + " created INTEGER, modified INTEGER DEFAULT 0,"
+                + " audio_path TEXT, words INTEGER,"
                 + " pos INTEGER DEFAULT 0, done INTEGER DEFAULT 0,"
                 + " project_id INTEGER DEFAULT NULL,"
                 + " section_id INTEGER DEFAULT NULL,"
@@ -38,6 +39,8 @@ public class NotesDb extends SQLiteOpenHelper {
                 + " folder_id INTEGER DEFAULT NULL,"
                 + " body TEXT DEFAULT '',"
                 + " words INTEGER DEFAULT 0,"
+                + " created INTEGER DEFAULT 0,"
+                + " modified INTEGER DEFAULT 0,"
                 + " deleted_at INTEGER DEFAULT NULL)");
         db.execSQL("CREATE TABLE folders (_id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + " project_id INTEGER, name TEXT, pos INTEGER DEFAULT 0,"
@@ -250,6 +253,19 @@ public class NotesDb extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_projects_deleted"
                     + " ON projects(deleted_at)");
         }
+        if (oldVersion < 13) {
+            // Piece timestamps (1.0.54): notes gain a last-edited
+            // stamp; sections gain both creation and last-edited
+            // stamps (they never stored either). 0 = unstamped:
+            // every existing piece keeps 0 and shows no dates, so
+            // only pieces created from now on carry stamps.
+            db.execSQL("ALTER TABLE notes ADD COLUMN"
+                    + " modified INTEGER DEFAULT 0");
+            db.execSQL("ALTER TABLE sections ADD COLUMN"
+                    + " created INTEGER DEFAULT 0");
+            db.execSQL("ALTER TABLE sections ADD COLUMN"
+                    + " modified INTEGER DEFAULT 0");
+        }
     }
 
     /** True when the title looks auto-generated from the transcript
@@ -440,7 +456,7 @@ public class NotesDb extends SQLiteOpenHelper {
         String[] cols = new String[]{"_id", "title",
                 "substr(transcript,1,200) AS transcript",
                 "tags", "created", "words", "pos", "done",
-                "project_id", "section_id"};
+                "project_id", "section_id", "modified"};
         Cursor c = getReadableDatabase().query("notes", cols, sel, args,
                 null, null, orderBy);
         try {
@@ -458,6 +474,7 @@ public class NotesDb extends SQLiteOpenHelper {
                 n.projectId = c.isNull(pi) ? -1 : c.getLong(pi);
                 int si = 9;
                 n.sectionId = c.isNull(si) ? -1 : c.getLong(si);
+                n.modified = c.isNull(10) ? 0 : c.getLong(10);
                 out.add(n);
             }
         } finally {
@@ -475,11 +492,28 @@ public class NotesDb extends SQLiteOpenHelper {
     }
 
     public void update(Note n) {
+        // Last-edited stamp: moves only when the words themselves
+        // change. Renames, moves and done toggles pass the same
+        // transcript through and leave the stamp alone.
+        String old = null;
+        Cursor oc = getReadableDatabase().query("notes",
+                new String[]{"transcript"}, "_id=?",
+                new String[]{String.valueOf(n.id)}, null, null, null);
+        try {
+            if (oc.moveToFirst() && !oc.isNull(0)) old = oc.getString(0);
+        } finally {
+            oc.close();
+        }
+        String incoming = n.transcript == null ? "" : n.transcript;
+        if (old != null && !old.equals(incoming)) {
+            n.modified = System.currentTimeMillis();
+        }
         ContentValues v = new ContentValues();
         v.put("title", n.title);
         v.put("transcript", n.transcript);
         v.put("tags", n.tags);
         v.put("words", n.words);
+        v.put("modified", n.modified);
         v.put("pos", n.pos);
         v.put("done", n.done);
         if (n.projectId < 0) v.putNull("project_id");
@@ -821,6 +855,8 @@ public class NotesDb extends SQLiteOpenHelper {
         v.putNull("folder_id");
         v.put("body", "");
         v.put("words", 0);
+        v.put("created", System.currentTimeMillis());
+        v.put("modified", 0);
         return getWritableDatabase().insert("sections", null, v);
     }
 
@@ -905,7 +941,7 @@ public class NotesDb extends SQLiteOpenHelper {
         List<Section> out = new ArrayList<>();
         String[] cols = new String[]{"_id", "project_id", "name", "pos",
                 "collapsed", "folder_id",
-                "substr(body,1,200) AS body", "words"};
+                "substr(body,1,200) AS body", "words", "created", "modified"};
         Cursor c = getReadableDatabase().query("sections", cols,
                 "project_id=? AND deleted_at IS NULL",
                 new String[]{String.valueOf(projectId)},
@@ -923,6 +959,8 @@ public class NotesDb extends SQLiteOpenHelper {
                 s.folderId = c.isNull(5) ? -1 : c.getLong(5);
                 s.body = c.isNull(6) ? "" : c.getString(6);
                 s.words = c.isNull(7) ? 0 : c.getInt(7);
+                s.created = c.isNull(8) ? 0 : c.getLong(8);
+                s.modified = c.isNull(9) ? 0 : c.getLong(9);
                 out.add(s);
             }
         } finally {
@@ -954,18 +992,35 @@ public class NotesDb extends SQLiteOpenHelper {
         s.body = (bi < 0 || c.isNull(bi)) ? "" : c.getString(bi);
         int wi = c.getColumnIndex("words");
         s.words = (wi < 0 || c.isNull(wi)) ? 0 : c.getInt(wi);
+        int cri = c.getColumnIndex("created");
+        s.created = (cri < 0 || c.isNull(cri)) ? 0 : c.getLong(cri);
+        int mdi = c.getColumnIndex("modified");
+        s.modified = (mdi < 0 || c.isNull(mdi)) ? 0 : c.getLong(mdi);
         return s;
     }
 
     /** Save a section's body text; the cached word count follows the
-     * text. */
-    public void updateSectionBody(long id, String body) {
+     * text. The last-edited stamp moves only when the text actually
+     * changes. Returns true when the body changed. */
+    public boolean updateSectionBody(long id, String body) {
         if (body == null) body = "";
+        String old = null;
+        Cursor oc = getReadableDatabase().query("sections",
+                new String[]{"body"}, "_id=?",
+                new String[]{String.valueOf(id)}, null, null, null);
+        try {
+            if (oc.moveToFirst() && !oc.isNull(0)) old = oc.getString(0);
+        } finally {
+            oc.close();
+        }
+        boolean changed = old != null && !old.equals(body);
         ContentValues v = new ContentValues();
         v.put("body", body);
         v.put("words", countWords(body));
+        if (changed) v.put("modified", System.currentTimeMillis());
         getWritableDatabase().update("sections", v, "_id=?",
                 new String[]{String.valueOf(id)});
+        return changed;
     }
 
     /** Persist a section's collapsed/expanded state. Kept for the DB
@@ -1550,6 +1605,8 @@ public class NotesDb extends SQLiteOpenHelper {
         n.transcript = c.getString(c.getColumnIndexOrThrow("transcript"));
         n.tags = c.getString(c.getColumnIndexOrThrow("tags"));
         n.created = c.getLong(c.getColumnIndexOrThrow("created"));
+        int mi = c.getColumnIndex("modified");
+        n.modified = (mi < 0 || c.isNull(mi)) ? 0 : c.getLong(mi);
         n.audioPath = c.getString(c.getColumnIndexOrThrow("audio_path"));
         n.words = c.getInt(c.getColumnIndexOrThrow("words"));
         n.pos = c.getInt(c.getColumnIndexOrThrow("pos"));
