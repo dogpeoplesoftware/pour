@@ -14,11 +14,15 @@ import java.util.List;
 
 /**
  * Compact floating selection strip. Appears above the tab row while
- * items are checked and shows every bulk action as a text button, so
- * delete never looks like the only option.
+ * items are checked and shows every bulk action, so delete never
+ * looks like the only option.
  *
- * Layout: [X] [N selected] [action] [action]...
- * Destructive actions sort last and render in a quiet red.
+ * Layout: [X] [N selected] [action] [action]... [trash icon]
+ * Safe actions are text buttons. The destructive action sorts last
+ * and renders as a red trash can icon (the app's ic_delete): the
+ * full "Move to trash" wording did not fit the strip on narrow
+ * screens and ran off the edge; the confirmation dialog still
+ * names the action in full.
  */
 public final class SelectionBar {
 
@@ -122,6 +126,27 @@ public final class SelectionBar {
     }
 
     private View actionButton(final Action act) {
+        if (act.destructive()) {
+            // Icon button with the app's trash can, same 48dp target
+            // as the clear X. Color filter supplies the red; the
+            // vector itself strokes white.
+            ImageButton ib = new ImageButton(a);
+            ib.setImageResource(R.drawable.ic_delete);
+            ib.setBackground(Ui.selectable(a));
+            ib.setColorFilter(DESTRUCTIVE);
+            ib.setContentDescription(act.label());
+            int s48 = Ui.dp(a, 48);
+            ib.setLayoutParams(new LinearLayout.LayoutParams(s48, s48));
+            ib.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            int ip = Ui.dp(a, 13);
+            ib.setPadding(ip, ip, ip, ip);
+            ib.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    act.run();
+                }
+            });
+            return ib;
+        }
         TextView b = new TextView(a);
         b.setText(act.label());
         b.setTextSize(14);
@@ -134,7 +159,7 @@ public final class SelectionBar {
         } else {
             b.setTextColor(Ui.CARD_TEXT);
         }
-        int hp = Ui.dp(a, 14);
+        int hp = Ui.dp(a, 10);
         int vp = Ui.dp(a, 12);
         b.setPadding(hp, vp, hp, vp);
         b.setMinHeight(Ui.dp(a, 48));
