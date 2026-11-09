@@ -92,6 +92,7 @@ public class ProjectActivity extends Activity {
     /** Compact floating selection strip: every bulk action as a text
      * button, delete last in red. */
     private SelectionBar selectionBar;
+    private SelectAllRow selectAllRow;
     /** Folders check off as units (for export/copy); their sections
      * are expanded at collection time. */
     private final Set<Long> selectedFolders = new HashSet<Long>();
@@ -230,6 +231,16 @@ public class ProjectActivity extends Activity {
                     int b, int c) { }
             @Override public void afterTextChanged(Editable s) { refresh(); }
         });
+
+        selectAllRow = new SelectAllRow(this, new Runnable() {
+            @Override public void run() { onToggleSelectAll(); }
+        });
+        LinearLayout.LayoutParams saParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+        saParams.topMargin = Ui.dp(this, 8);
+        root.addView(selectAllRow.view(), saParams);
 
         listWrap = new FrameLayout(this);
         LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(
@@ -789,6 +800,27 @@ public class ProjectActivity extends Activity {
 
     // ---------------- group into folder ----------------
 
+    /** Master toggle: check every piece on the page, or clear the
+     * page's pieces when all are already checked. The page set is
+     * sectionById, which buildRows fills for the current view:
+     * every piece in the project normally (folder pieces included,
+     * collapsed or not), or just the matches while searching.
+     * Folder selections are a separate shorthand and are untouched. */
+    private void onToggleSelectAll() {
+        if (sectionById.isEmpty()) return;
+        java.util.List<Long> ids =
+                new ArrayList<Long>(sectionById.keySet());
+        boolean all = selected.containsAll(ids);
+        if (all) {
+            selected.removeAll(ids);
+        } else {
+            selected.addAll(ids);
+        }
+        refresh();
+        list.announceForAccessibility(all
+                ? "All pieces deselected." : "All pieces selected.");
+    }
+
     /** Checked section ids in display order — folder checkboxes
      * select the folder itself (for export), so grouping only ever
      * sees individually checked sections. */
@@ -924,6 +956,13 @@ public class ProjectActivity extends Activity {
     }
 
     @Override
+    protected void onActivityResult(int requestCode, int resultCode,
+                                    Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        ExportFolder.deliverResult(this, requestCode, resultCode, data);
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         // Selection is a working set, not state: leaving the view clears
@@ -959,6 +998,13 @@ public class ProjectActivity extends Activity {
                                         : " folders")));
         if (selectionBar != null) {
             selectionBar.update(selected.size() + selectedFolders.size());
+        }
+        if (selectAllRow != null) {
+            int sel = 0;
+            for (Long id : sectionById.keySet()) {
+                if (selected.contains(id)) sel++;
+            }
+            selectAllRow.sync(this, sectionById.size(), sel);
         }
         emptyView.setText(sectionCount == 0
                 ? (searching ? "No pieces match."
@@ -2386,6 +2432,16 @@ public class ProjectActivity extends Activity {
         }
         final String base = ProjectExporter.sanitizeFileName(p.name);
         final ProjectActivity self = this;
+        final Runnable saveToFolder = new Runnable() {
+            @Override public void run() {
+                if (isPdf) {
+                    ExportDelivery.saveBytesToFolder(
+                            self, f, pdfBytes, base);
+                } else {
+                    ExportDelivery.saveToFolder(self, f, text, base);
+                }
+            }
+        };
         ExportDelivery.askDestination(this,
                 new Runnable() {
                     @Override public void run() {
@@ -2397,6 +2453,7 @@ public class ProjectActivity extends Activity {
                         }
                     }
                 },
+                saveToFolder,
                 new Runnable() {
                     @Override public void run() {
                         if (isPdf) {
@@ -2406,6 +2463,12 @@ public class ProjectActivity extends Activity {
                             ExportDelivery.shareFile(self, f, text, base,
                                     "Share project");
                         }
+                    }
+                },
+                new Runnable() {
+                    @Override public void run() {
+                        ExportFolder.setPendingSave(saveToFolder);
+                        ExportFolder.pickFolder(self);
                     }
                 });
     }

@@ -93,6 +93,16 @@ public final class PieceExport {
             }
         }
         final String base = ProjectExporter.sanitizeFileName(docTitle);
+        final Runnable saveToFolder = new Runnable() {
+            @Override public void run() {
+                if (isPdf) {
+                    ExportDelivery.saveBytesToFolder(
+                            a, f, pdfBytes, base);
+                } else {
+                    ExportDelivery.saveToFolder(a, f, text, base);
+                }
+            }
+        };
         ExportDelivery.askDestination(a,
                 new Runnable() {
                     @Override public void run() {
@@ -104,6 +114,7 @@ public final class PieceExport {
                         }
                     }
                 },
+                saveToFolder,
                 new Runnable() {
                     @Override public void run() {
                         if (isPdf) {
@@ -113,6 +124,12 @@ public final class PieceExport {
                             ExportDelivery.shareFile(a, f, text, base,
                                     "Share piece");
                         }
+                    }
+                },
+                new Runnable() {
+                    @Override public void run() {
+                        ExportFolder.setPendingSave(saveToFolder);
+                        ExportFolder.pickFolder(a);
                     }
                 });
     }

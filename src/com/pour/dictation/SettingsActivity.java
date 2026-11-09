@@ -27,6 +27,7 @@ public class SettingsActivity extends Activity {
     private TextView themeSubtitle;
     private TextView textSizeSubtitle;
     private TextView sortSubtitle;
+    private TextView exportFolderSubtitle;
     private TextView voiceSubtitle;
     private TextView trashSubtitleView;
     private TextView retentionSubtitle;
@@ -178,6 +179,16 @@ public class SettingsActivity extends Activity {
         sortSubtitle = ((TextView[]) sortRow.getTag())[1];
         content.addView(sortRow);
         content.addView(exportDatesRow);
+        LinearLayout exportFolderRow = settingRow("Export folder",
+                exportFolderLabel(),
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        showExportFolderSheet();
+                    }
+                });
+        exportFolderSubtitle =
+                ((TextView[]) exportFolderRow.getTag())[1];
+        content.addView(exportFolderRow);
 
         // Trash: soft-deleted pieces live here until the retention
         // period expires or the user empties it.
@@ -775,8 +786,69 @@ public class SettingsActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode,
                                     Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        int folderResult = ExportFolder.deliverResult(this,
+                requestCode, resultCode, data);
+        if (folderResult != 0 && exportFolderSubtitle != null) {
+            exportFolderSubtitle.setText(exportFolderLabel());
+        }
         BackupFlow.onActivityResult(this, requestCode, resultCode, data,
                 null);
+    }
+
+    /** The current export target, for the Settings row subtitle. */
+    private String exportFolderLabel() {
+        if (ExportFolder.hasFolder(this)
+                && ExportFolder.folderUsable(this)) {
+            return ExportFolder.folderName(this);
+        }
+        return "Downloads";
+    }
+
+    /** Change or clear the export folder, outside of any export. */
+    private void showExportFolderSheet() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        final android.app.Dialog[] sheet = new android.app.Dialog[1];
+        TextView blurb = new TextView(this);
+        blurb.setText("Saved exports go to this folder instead of"
+                + " Downloads. Downloads stays available in the"
+                + " export sheet either way.");
+        blurb.setTextColor(Ui.CARD_MUTED);
+        blurb.setTextSize(14);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        bp.bottomMargin = Ui.dp(this, 8);
+        content.addView(blurb, bp);
+        content.addView(Sheet.row(this, "Choose a folder",
+                "Android's folder picker",
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        if (sheet[0] != null) sheet[0].dismiss();
+                        ExportFolder.setPendingSave(null);
+                        ExportFolder.pickFolder(SettingsActivity.this);
+                    }
+                }));
+        if (ExportFolder.hasFolder(this)) {
+            content.addView(Sheet.row(this, "Use Downloads only",
+                    "Forget the chosen folder",
+                    new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            if (sheet[0] != null) sheet[0].dismiss();
+                            ExportFolder.clearFolder(
+                                    SettingsActivity.this);
+                            if (exportFolderSubtitle != null) {
+                                exportFolderSubtitle.setText(
+                                        exportFolderLabel());
+                            }
+                            android.widget.Toast.makeText(
+                                    SettingsActivity.this,
+                                    "Exports will save to Downloads.",
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    }));
+        }
+        sheet[0] = Sheet.show(this, "Export folder", content);
     }
 
     /** Copy the debug log as plain text to the clipboard. */

@@ -75,6 +75,7 @@ public class LibraryActivity extends Activity {
     /** Compact floating selection strip: every bulk action as a text
      * button, delete last in red. */
     private SelectionBar selectionBar;
+    private SelectAllRow selectAllRow;
     // Drag to reorder: press-and-hold lifts the card; a trash bar
     // appears while dragging (Pixel-launcher style).
     private View insertLine;
@@ -207,6 +208,14 @@ public class LibraryActivity extends Activity {
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT);
         root.addView(sortRow, sortParams);
+
+        selectAllRow = new SelectAllRow(this, new Runnable() {
+            @Override public void run() { onToggleSelectAll(); }
+        });
+        root.addView(selectAllRow.view(),
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
 
         list = new ListView(this);
         list.setDivider(new ColorDrawable(Ui.BG));
@@ -636,10 +645,50 @@ public class LibraryActivity extends Activity {
     }
 
     @Override
+    protected void onActivityResult(int requestCode, int resultCode,
+                                    Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        ExportFolder.deliverResult(this, requestCode, resultCode, data);
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         // Bulk selection is per-visit, like the project view.
         selected.clear();
+    }
+
+    /** Select-all row state, from the pieces currently listed. */
+    private void syncSelectAll() {
+        if (selectAllRow == null) return;
+        int total = 0, sel = 0;
+        for (Object o : notes) {
+            if (o instanceof Note) {
+                total++;
+                if (selected.contains(((Note) o).id)) sel++;
+            }
+        }
+        selectAllRow.sync(this, total, sel);
+    }
+
+    /** Master toggle: check every listed piece, or clear the listed
+     * pieces when all are already checked. Search rows that are
+     * project sections are not Bucket pieces and are left alone. */
+    private void onToggleSelectAll() {
+        java.util.List<Long> ids = new ArrayList<Long>();
+        for (Object o : notes) {
+            if (o instanceof Note) ids.add(((Note) o).id);
+        }
+        if (ids.isEmpty()) return;
+        boolean all = selected.containsAll(ids);
+        if (all) {
+            selected.removeAll(ids);
+        } else {
+            selected.addAll(ids);
+        }
+        refresh();
+        list.announceForAccessibility(all
+                ? "All pieces deselected." : "All pieces selected.");
     }
 
     /** A note typed by hand: for writers who would rather not dictate.
@@ -719,6 +768,7 @@ public class LibraryActivity extends Activity {
         }
         adapter.notifyDataSetChanged();
         if (selectionBar != null) selectionBar.update(selected.size());
+        syncSelectAll();
         updateSortLabel();
         clearSearchBtn.setVisibility(
                 searching ? View.VISIBLE : View.GONE);
@@ -885,17 +935,26 @@ public class LibraryActivity extends Activity {
     /** The checked Bucket notes as exporter entries, one entry per
      * piece with the piece title as its heading, the same model a
      * project hands the exporter. Empty pieces are skipped, as the
-     * exporter's project collection skips empty sections. */
-    private static List<ProjectExporter.Entry> bucketEntries(
+     * exporter's project collection skips empty sections.
+     *
+     * Each piece is reloaded in full by id first: the list these
+     * notes came from carries only the first 200 characters of each
+     * piece (the list query's substr, for fast cards), and building
+     * entries from those copies silently truncated every piece in
+     * bulk copy and share. Project export already reloads each
+     * section in full the same way. */
+    private List<ProjectExporter.Entry> bucketEntries(
             List<Note> notes) {
         List<ProjectExporter.Entry> entries =
                 new ArrayList<ProjectExporter.Entry>();
         for (Note n : notes) {
-            String body = n.transcript == null ? "" : n.transcript;
+            Note full = db.get(n.id);
+            Note src = full != null ? full : n;
+            String body = src.transcript == null ? "" : src.transcript;
             if (body.trim().isEmpty()) continue;
             entries.add(new ProjectExporter.Entry(
-                    null, n.title == null ? "" : n.title, body,
-                    n.created, n.modified));
+                    null, src.title == null ? "" : src.title, body,
+                    src.created, src.modified));
         }
         return entries;
     }
@@ -986,6 +1045,16 @@ public class LibraryActivity extends Activity {
         }
         final String base = ProjectExporter.sanitizeFileName("Bucket");
         final LibraryActivity self = this;
+        final Runnable saveToFolder = new Runnable() {
+            @Override public void run() {
+                if (isPdf) {
+                    ExportDelivery.saveBytesToFolder(
+                            self, f, pdfBytes, base);
+                } else {
+                    ExportDelivery.saveToFolder(self, f, t, base);
+                }
+            }
+        };
         ExportDelivery.askDestination(this,
                 new Runnable() {
                     @Override public void run() {
@@ -997,6 +1066,7 @@ public class LibraryActivity extends Activity {
                         }
                     }
                 },
+                saveToFolder,
                 new Runnable() {
                     @Override public void run() {
                         if (isPdf) {
@@ -1006,6 +1076,12 @@ public class LibraryActivity extends Activity {
                             ExportDelivery.shareFile(self, f, t, base,
                                     "Share pieces");
                         }
+                    }
+                },
+                new Runnable() {
+                    @Override public void run() {
+                        ExportFolder.setPendingSave(saveToFolder);
+                        ExportFolder.pickFolder(self);
                     }
                 });
     }

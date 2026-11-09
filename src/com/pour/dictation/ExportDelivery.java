@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -19,27 +20,83 @@ import java.util.List;
 
 /**
  * The delivery half of export: once text has been rendered in a format,
- * it either gets saved to Downloads or shared to another app. Shared by
- * the Project page and the Bucket page so both offer the same
- * Export → format → destination flow.
+ * it gets saved to Downloads, saved to the user's chosen export folder
+ * (see ExportFolder), or shared to another app. Shared by every export
+ * flow so they all offer the same Export → format → destination flow.
  */
 public final class ExportDelivery {
 
     private ExportDelivery() { }
 
-    /** Destination sheet after the format picker: save or share the file. */
+    /** Destination sheet after the format picker: save to Downloads,
+     * save to the chosen export folder, or share the file. The first
+     * time anyone reaches this sheet with no folder chosen, it asks
+     * about the folder once (see ExportFolder) and says where the
+     * choice lives; after that it is just a destination list. */
     public static void askDestination(final Activity a,
                                      final Runnable doSave,
-                                     final Runnable doShare) {
+                                     final Runnable doSaveToFolder,
+                                     final Runnable doShare,
+                                     final Runnable chooseFolder) {
+        // A stored folder whose permission is gone is a dead
+        // destination: say so once and forget it.
+        if (ExportFolder.hasFolder(a) && !ExportFolder.folderUsable(a)) {
+            ExportFolder.clearFolder(a);
+            Toast.makeText(a,
+                    "The export folder is no longer available,"
+                            + " so it was forgotten.",
+                    Toast.LENGTH_LONG).show();
+        }
+        final boolean firstUse = !ExportFolder.promptDone(a);
+        final boolean haveFolder = ExportFolder.hasFolder(a);
+        final String fname = ExportFolder.folderName(a);
         LinearLayout content = new LinearLayout(a);
         content.setOrientation(LinearLayout.VERTICAL);
         final android.app.Dialog[] sheet = new android.app.Dialog[1];
+        if (firstUse) {
+            android.widget.TextView blurb =
+                    new android.widget.TextView(a);
+            blurb.setText("Exports save to Downloads unless you pick"
+                    + " a folder. You can change your choice any time"
+                    + " in Settings.");
+            blurb.setTextColor(Ui.CARD_MUTED);
+            blurb.setTextSize(14);
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            bp.bottomMargin = Ui.dp(a, 8);
+            content.addView(blurb, bp);
+        }
+        if (haveFolder) {
+            content.addView(Sheet.row(a,
+                    "Save to " + fname, "Your chosen export folder",
+                    new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            if (sheet[0] != null) sheet[0].dismiss();
+                            ExportFolder.markPromptDone(a);
+                            doSaveToFolder.run();
+                        }
+                    }));
+        }
         content.addView(Sheet.row(a,
                 "Save to Downloads", "Keep the file on this device",
                 new View.OnClickListener() {
                     @Override public void onClick(View v) {
                         if (sheet[0] != null) sheet[0].dismiss();
+                        ExportFolder.markPromptDone(a);
                         doSave.run();
+                    }
+                }));
+        content.addView(Sheet.row(a,
+                haveFolder ? "Change export folder"
+                        : "Choose export folder",
+                haveFolder ? "Pick a different folder for exports"
+                        : "Pick where saved exports go",
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        if (sheet[0] != null) sheet[0].dismiss();
+                        ExportFolder.markPromptDone(a);
+                        chooseFolder.run();
                     }
                 }));
         content.addView(Sheet.row(a,
@@ -47,6 +104,7 @@ public final class ExportDelivery {
                 new View.OnClickListener() {
                     @Override public void onClick(View v) {
                         if (sheet[0] != null) sheet[0].dismiss();
+                        ExportFolder.markPromptDone(a);
                         doShare.run();
                     }
                 }));
@@ -158,6 +216,183 @@ public final class ExportDelivery {
                             + " files to Downloads.",
                     Toast.LENGTH_LONG).show();
         }
+    }
+
+
+    // ---------------- save to the chosen export folder ----------------
+
+    /** Save text as <baseName>.<ext> in the chosen export folder. */
+    public static void saveToFolder(Activity a,
+                                    ProjectExporter.Format f,
+                                    String text, String baseName) {
+        byte[] data;
+        try {
+            data = text.getBytes("UTF-8");
+        } catch (Exception e) {
+            data = null;
+        }
+        if (data == null || !saveOneToFolder(a, f, data, baseName)) {
+            folderSaveFailed(a);
+        }
+    }
+
+    /** Save binary data (e.g. PDF) to the chosen export folder. */
+    public static void saveBytesToFolder(Activity a,
+                                         ProjectExporter.Format f,
+                                         byte[] data, String baseName) {
+        if (!saveOneToFolder(a, f, data, baseName)) {
+            folderSaveFailed(a);
+        }
+    }
+
+    private static boolean saveOneToFolder(Activity a,
+                                           ProjectExporter.Format f,
+                                           byte[] data, String base) {
+        String fileName = writeFolderBytes(a, f, data, base);
+        if (fileName == null) return false;
+        Toast.makeText(a, "Saved to " + ExportFolder.folderName(a)
+                        + "/" + fileName,
+                Toast.LENGTH_LONG).show();
+        return true;
+    }
+
+    /** Save several texts to the chosen folder, one summary toast. */
+    public static void saveAllToFolder(Activity a,
+                                       ProjectExporter.Format f,
+                                       List<String> texts,
+                                       List<String> baseNames) {
+        int ok = 0;
+        for (int i = 0; i < texts.size(); i++) {
+            byte[] data;
+            try {
+                data = texts.get(i).getBytes("UTF-8");
+            } catch (Exception e) {
+                data = null;
+            }
+            if (data != null && writeFolderBytes(a, f, data,
+                    baseNames.get(i)) != null) {
+                ok++;
+            }
+        }
+        folderSummary(a, ok, texts.size());
+    }
+
+    /** Save several binary files to the chosen folder. */
+    public static void saveAllBytesToFolder(Activity a,
+                                            ProjectExporter.Format f,
+                                            List<byte[]> datas,
+                                            List<String> baseNames) {
+        int ok = 0;
+        for (int i = 0; i < datas.size(); i++) {
+            if (writeFolderBytes(a, f, datas.get(i),
+                    baseNames.get(i)) != null) {
+                ok++;
+            }
+        }
+        folderSummary(a, ok, datas.size());
+    }
+
+    private static void folderSummary(Activity a, int ok, int total) {
+        if (ok == 0) {
+            folderSaveFailed(a);
+            return;
+        }
+        String fname = ExportFolder.folderName(a);
+        if (ok == total) {
+            Toast.makeText(a, ok == 1 ? "Saved 1 file to " + fname + "."
+                            : "Saved " + ok + " files to " + fname + ".",
+                    Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(a, "Saved " + ok + " of " + total
+                            + " files to " + fname + ".",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** A failed folder save almost always means the folder moved or
+     * its permission was revoked: say so and forget the folder, so
+     * the sheet stops offering a dead destination. */
+    private static void folderSaveFailed(Activity a) {
+        String fname = ExportFolder.folderName(a);
+        ExportFolder.clearFolder(a);
+        Toast.makeText(a, "Couldn't save to " + fname
+                        + ". It may have moved, so it was forgotten."
+                        + " Downloads still works.",
+                Toast.LENGTH_LONG).show();
+    }
+
+    /** Create and write one file inside the chosen folder's tree;
+     * returns the display name used, or null on any failure. */
+    private static String writeFolderBytes(Activity a,
+                                           ProjectExporter.Format f,
+                                           byte[] data, String base) {
+        android.net.Uri tree = ExportFolder.folderUri(a);
+        if (tree == null || !ExportFolder.folderUsable(a)) return null;
+        try {
+            String parentId = DocumentsContract.getTreeDocumentId(tree);
+            android.net.Uri parent = DocumentsContract
+                    .buildDocumentUriUsingTree(tree, parentId);
+            String fileName = uniqueFolderName(a, tree, parentId,
+                    base, f.ext);
+            android.net.Uri doc = DocumentsContract.createDocument(
+                    a.getContentResolver(), parent, f.mime, fileName);
+            if (doc == null) return null;
+            OutputStream out = null;
+            try {
+                out = a.getContentResolver().openOutputStream(doc);
+                if (out == null) throw new IOException("no stream");
+                out.write(data);
+                out.flush();
+            } catch (Exception e) {
+                try {
+                    DocumentsContract.deleteDocument(
+                            a.getContentResolver(), doc);
+                } catch (Exception ignored) { }
+                return null;
+            } finally {
+                try { if (out != null) out.close(); }
+                catch (Exception ignored) { }
+            }
+            return fileName;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Collision-safe name inside the folder: "name.ext",
+     * "name (2).ext", ... against the folder's current children. */
+    private static String uniqueFolderName(Activity a,
+                                           android.net.Uri tree,
+                                           String parentId,
+                                           String base, String ext) {
+        java.util.Set<String> existing = new java.util.HashSet<String>();
+        Cursor c = null;
+        try {
+            android.net.Uri children = DocumentsContract
+                    .buildChildDocumentsUriUsingTree(tree, parentId);
+            c = a.getContentResolver().query(children,
+                    new String[]{DocumentsContract.Document
+                            .COLUMN_DISPLAY_NAME},
+                    null, null, null);
+            if (c != null) {
+                while (c.moveToNext()) {
+                    String n = c.getString(0);
+                    if (n != null) existing.add(n);
+                }
+            }
+        } catch (Exception e) {
+            // An unreadable listing just falls back to the plain name;
+            // createDocument itself renames on collision as a backup.
+        } finally {
+            if (c != null) c.close();
+        }
+        String name = base + "." + ext;
+        int n = 2;
+        while (existing.contains(name)) {
+            name = base + " (" + n + ")." + ext;
+            n++;
+        }
+        return name;
     }
 
     /** Insert and write one download; returns the display name, or

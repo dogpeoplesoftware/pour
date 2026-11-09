@@ -58,6 +58,7 @@ public class ProjectsActivity extends Activity {
     /** Compact floating selection strip: every bulk action as a text
      * button, delete last in red. */
     private SelectionBar selectionBar;
+    private SelectAllRow selectAllRow;
     // Drag to reorder: press-and-hold lifts the card; a trash bar
     // appears while dragging (same as the Bucket).
     private View insertLine;
@@ -299,6 +300,13 @@ public class ProjectsActivity extends Activity {
         LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         listParams.topMargin = Ui.dp(this, 12);
+        selectAllRow = new SelectAllRow(this, new Runnable() {
+            @Override public void run() { onToggleSelectAll(); }
+        });
+        root.addView(selectAllRow.view(),
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
         root.addView(listSlot, listParams);
         listSlot.addView(list,
                 new android.widget.FrameLayout.LayoutParams(
@@ -529,6 +537,13 @@ public class ProjectsActivity extends Activity {
     }
 
     @Override
+    protected void onActivityResult(int requestCode, int resultCode,
+                                    Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        ExportFolder.deliverResult(this, requestCode, resultCode, data);
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         selected.clear();
@@ -574,6 +589,39 @@ public class ProjectsActivity extends Activity {
         emptyView.setText(searching ? "No pieces match."
                 : "No projects yet. Tap + to start one.");
         if (selectionBar != null) selectionBar.update(selected.size());
+        syncSelectAll();
+    }
+
+    /** Select-all row state. Selection is suspended while searching
+     * on this page, so the row hides then. */
+    private void syncSelectAll() {
+        if (selectAllRow == null) return;
+        if (isSearching()) {
+            selectAllRow.sync(this, 0, 0);
+            return;
+        }
+        int sel = 0;
+        for (Project p : projects) {
+            if (selected.contains(p.id)) sel++;
+        }
+        selectAllRow.sync(this, projects.size(), sel);
+    }
+
+    /** Master toggle: check every project, or clear them when all
+     * are already checked. */
+    private void onToggleSelectAll() {
+        if (isSearching() || projects.isEmpty()) return;
+        List<Long> ids = new ArrayList<Long>();
+        for (Project p : projects) ids.add(p.id);
+        boolean all = selected.containsAll(ids);
+        if (all) {
+            selected.removeAll(ids);
+        } else {
+            selected.addAll(ids);
+        }
+        refresh();
+        list.announceForAccessibility(all
+                ? "All projects deselected." : "All projects selected.");
     }
 
     /** True while the search box has a query. Drag, selection, and
@@ -722,6 +770,17 @@ public class ProjectsActivity extends Activity {
             return;
         }
         final ProjectsActivity self = this;
+        final Runnable saveToFolder = new Runnable() {
+            @Override public void run() {
+                if (isPdf) {
+                    ExportDelivery.saveAllBytesToFolder(self, f,
+                            pdfs, bases);
+                } else {
+                    ExportDelivery.saveAllToFolder(self, f,
+                            texts, bases);
+                }
+            }
+        };
         ExportDelivery.askDestination(this,
                 new Runnable() {
                     @Override public void run() {
@@ -734,6 +793,7 @@ public class ProjectsActivity extends Activity {
                         }
                     }
                 },
+                saveToFolder,
                 new Runnable() {
                     @Override public void run() {
                         if (isPdf) {
@@ -743,6 +803,12 @@ public class ProjectsActivity extends Activity {
                             ExportDelivery.shareFiles(self, f, texts, bases,
                                     "Share projects");
                         }
+                    }
+                },
+                new Runnable() {
+                    @Override public void run() {
+                        ExportFolder.setPendingSave(saveToFolder);
+                        ExportFolder.pickFolder(self);
                     }
                 });
     }
